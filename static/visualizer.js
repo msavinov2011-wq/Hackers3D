@@ -17,7 +17,6 @@ let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
 let objects = [];
 let objectDetails = new Map(); // Store object details for hover info
-let font; // Store loaded font
 let highlightedObject = null; // Store currently highlighted object
 let highlightedMaterial = null; // Store original material
 let objectsById = new Map(); // Store objects by file/folder path for searching
@@ -83,21 +82,6 @@ let highlightedLinkIndices = [];
 
 // Initialize the scene
 function init() {
-    // Load font first
-    const fontLoader = new THREE.FontLoader();
-    fontLoader.load(
-        'https://cdn.jsdelivr.net/npm/three@0.132.2/examples/fonts/helvetiker_regular.typeface.json',
-        function(loadedFont) {
-            font = loadedFont;
-        },
-        undefined,
-        function(error) {
-            // The 3D filesystem must not depend on the optional font CDN.
-            // Keep the graph/search usable even when the external font fails.
-            console.warn('HACKERS3D: font load failed; continuing without font.', error);
-        }
-    );
-    
     // Create scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
