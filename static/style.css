@@ -3,8 +3,8 @@ body {
     padding: 0;
     overflow: hidden;
     font-family: 'Courier New', monospace;
-    background-color: #000;
-    color: #0ff;
+    background-color: #00030a;
+    color: #66eaff;
 }
 
 #container {
@@ -21,9 +21,9 @@ body {
     left: 10px;
     padding: 12px;
     background-color: rgba(0, 0, 0, 0.8);
-    border: 1px solid #0ff;
+    border: 1px solid #66eaff;
     border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(40, 210, 255, 0.3);
     z-index: 100;
     pointer-events: none;
     max-width: 350px;
@@ -33,7 +33,7 @@ body {
 h1 {
     margin: 0 0 10px 0;
     font-size: 16px;
-    color: #0ff;
+    color: #66eaff;
 }
 
 #hover-info, #controls-info {
@@ -51,7 +51,7 @@ h1 {
     left: 50%;
     transform: translate(-50%, -50%);
     background-color: rgba(0, 0, 0, 0.7);
-    border: 1px solid #0ff;
+    border: 1px solid #66eaff;
     padding: 20px;
     text-align: center;
     z-index: 200;
@@ -66,7 +66,7 @@ h1 {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: rgba(0, 255, 255, 0.8);
+    color: rgba(40, 210, 255, 0.8);
     font-size: 24px;
     font-weight: bold;
     z-index: 100;
@@ -99,24 +99,24 @@ h1 {
     width: 100%;
     padding: 8px 12px;
     background-color: rgba(0, 0, 0, 0.8);
-    border: 1px solid #0ff;
+    border: 1px solid #66eaff;
     border-radius: 4px;
-    color: #0ff;
+    color: #66eaff;
     font-family: 'Courier New', monospace;
     font-size: 14px;
     outline: none;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(40, 210, 255, 0.3);
     transition: all 0.3s ease;
 }
 
 #search-bar::placeholder {
-    color: rgba(0, 255, 255, 0.5);
+    color: rgba(40, 210, 255, 0.5);
     font-style: italic;
 }
 
 #search-bar:focus {
-    border-color: #0fa;
-    box-shadow: 0 0 15px rgba(0, 255, 170, 0.5);
+    border-color: #39cfff;
+    box-shadow: 0 0 15px rgba(30, 180, 255, 0.5);
 }
 
 #search-results {
@@ -127,16 +127,16 @@ h1 {
     right: 0;
     margin-top: 5px;
     background-color: rgba(0, 0, 0, 0.9);
-    border: 1px solid #0ff;
+    border: 1px solid #66eaff;
     border-radius: 4px;
     max-height: 300px;
     overflow-y: auto;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(40, 210, 255, 0.3);
 }
 
 .search-result {
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(40, 210, 255, 0.2);
     cursor: pointer;
     transition: all 0.2s ease;
     color: #ddd;
@@ -147,7 +147,7 @@ h1 {
 }
 
 .search-result:hover {
-    background-color: rgba(0, 255, 255, 0.1);
+    background-color: rgba(40, 210, 255, 0.1);
     color: #fff;
 }
 
@@ -158,16 +158,16 @@ h1 {
 }
 
 .search-result .highlight {
-    color: #0fa;
+    color: #39cfff;
     font-weight: bold;
 }
 
 .search-result.file {
-    border-left: 3px solid #0fa;
+    border-left: 3px solid #39cfff;
 }
 
 .search-result.directory {
-    border-left: 3px solid #0ff;
+    border-left: 3px solid #66eaff;
 }
 
 /* Scrollbar styling for search results */
@@ -180,7 +180,7 @@ h1 {
 }
 
 #search-results::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 255, 255, 0.5);
+    background-color: rgba(40, 210, 255, 0.5);
     border-radius: 6px;
 }
 
@@ -208,8 +208,8 @@ h1 {
 
 .modal {
     background-color: #0a0a0a;
-    border: 2px solid #0ff;
-    box-shadow: 0 0 20px #0ff, 0 0 30px rgba(0, 255, 255, 0.5);
+    border: 2px solid #66eaff;
+    box-shadow: 0 0 20px #66eaff, 0 0 30px rgba(40, 210, 255, 0.5);
     padding: 25px;
     border-radius: 5px;
     width: 400px;
@@ -220,9 +220,9 @@ h1 {
 .modal-header {
     font-size: 1.5em;
     margin-bottom: 15px;
-    color: #0ff;
+    color: #66eaff;
     font-weight: bold;
-    text-shadow: 0 0 5px #0ff;
+    text-shadow: 0 0 5px #66eaff;
     letter-spacing: 1px;
 }
 
@@ -231,11 +231,11 @@ h1 {
     padding: 10px;
     margin-bottom: 20px;
     background-color: #1a1a1a;
-    border: 1px solid #0ff;
-    color: #0fa;
+    border: 1px solid #66eaff;
+    color: #39cfff;
     font-family: 'Courier New', monospace;
     font-size: 16px;
-    box-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 5px rgba(40, 210, 255, 0.5);
 }
 
 .modal-buttons {
@@ -266,13 +266,13 @@ h1 {
 .modal-confirm {
     background-color: #008888;
     color: white;
-    border: 1px solid #0ff;
-    box-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    border: 1px solid #66eaff;
+    box-shadow: 0 0 5px rgba(40, 210, 255, 0.5);
 }
 
 .modal-confirm:hover {
-    background-color: #0ff;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+    background-color: #66eaff;
+    box-shadow: 0 0 10px rgba(40, 210, 255, 0.8);
     color: #000;
 }
 
@@ -300,16 +300,16 @@ h1 {
     font-weight: bold;
 }
 /* HACKERS3D telemetry HUD */
-.hud-panel{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);background:linear-gradient(135deg,rgba(0,18,10,.92),rgba(0,0,0,.78));border:1px solid rgba(0,255,102,.65);box-shadow:0 0 14px rgba(0,255,102,.18),inset 0 0 18px rgba(0,255,102,.04)}
-.hud-title{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 8px rgba(0,255,102,.75)}
-.hud-dot{width:7px;height:7px;border-radius:50%;background:#00ff66;box-shadow:0 0 8px #00ff66}
-.hud-status,.hud-label{margin:5px 0 8px;font-size:10px;letter-spacing:1.5px;color:#00ffaa;opacity:.8}
+.hud-panel{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);background:linear-gradient(135deg,rgba(0,18,10,.92),rgba(0,0,0,.78));border:1px solid rgba(40,210,255,.65);box-shadow:0 0 14px rgba(40,210,255,.18),inset 0 0 18px rgba(40,210,255,.04)}
+.hud-title{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 8px rgba(40,210,255,.75)}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:#43ddff;box-shadow:0 0 8px #43ddff}
+.hud-status,.hud-label{margin:5px 0 8px;font-size:10px;letter-spacing:1.5px;color:#8eefff;opacity:.8}
 #action-info{margin-top:5px;color:#aaa;font-size:12px}
 #telemetry{position:absolute;left:10px;bottom:10px;width:190px;padding:10px 12px;z-index:100;pointer-events:none;font-size:11px}
-#telemetry>div:not(.hud-label){display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid rgba(0,255,102,.1)}
-#telemetry span{color:#777;letter-spacing:1px}#telemetry strong{color:#00ffaa;font-weight:normal}
+#telemetry>div:not(.hud-label){display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid rgba(40,210,255,.1)}
+#telemetry span{color:#777;letter-spacing:1px}#telemetry strong{color:#8eefff;font-weight:normal}
 #selection-panel{position:absolute;right:10px;bottom:10px;width:290px;padding:12px;z-index:100;pointer-events:none;font-size:12px;opacity:.92}
-#selection-name{color:#00ff66;font-size:14px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#selection-name{color:#43ddff;font-size:14px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #selection-details{margin-top:6px;color:#aaa;line-height:1.45;word-break:break-word}
 @media(max-width:700px){#info{max-width:260px}#controls-info{display:none}#telemetry{width:155px}#selection-panel{width:210px}#search-container{width:220px}}
 
@@ -320,9 +320,9 @@ h1 {
     right: 18px;
     z-index: 20;
     padding: 7px 11px;
-    border: 1px solid #00ff66;
+    border: 1px solid #43ddff;
     background: rgba(0, 20, 8, 0.78);
-    color: #00ff66;
+    color: #43ddff;
     font-family: monospace;
     font-size: 11px;
     letter-spacing: 1.5px;
@@ -333,4 +333,67 @@ h1 {
     border-color: #ffb000;
     color: #ffb000;
     box-shadow: 0 0 12px rgba(255, 176, 0, 0.18);
+}
+
+
+/* Cinematic data-network presentation */
+body {
+    background:
+        radial-gradient(circle at 50% 50%, rgba(0, 115, 185, 0.08), transparent 34%),
+        radial-gradient(circle at 78% 18%, rgba(0, 170, 255, 0.05), transparent 28%),
+        #00030a;
+}
+
+#container::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 50% 50%, transparent 34%, rgba(0, 5, 20, 0.18) 68%, rgba(0, 2, 12, 0.72) 100%),
+        linear-gradient(180deg, rgba(0, 8, 20, 0.08), rgba(0, 0, 8, 0.18));
+    z-index: 2;
+}
+
+#info,
+#search-container,
+#telemetry,
+#selection-panel,
+.live-status {
+    border-color: rgba(70, 220, 255, 0.42);
+    box-shadow: 0 0 18px rgba(0, 170, 255, 0.12), inset 0 0 18px rgba(0, 130, 255, 0.025);
+}
+
+#info {
+    background: rgba(0, 5, 16, 0.68);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+}
+
+#search-bar {
+    background: rgba(0, 5, 16, 0.68);
+    border-color: rgba(70, 220, 255, 0.48);
+    box-shadow: 0 0 14px rgba(0, 170, 255, 0.12);
+}
+
+.hud-panel {
+    background: linear-gradient(135deg, rgba(0, 12, 24, 0.72), rgba(0, 0, 8, 0.62));
+    border-color: rgba(70, 220, 255, 0.38);
+    box-shadow: 0 0 18px rgba(0, 170, 255, 0.11), inset 0 0 18px rgba(0, 120, 255, 0.035);
+}
+
+.hud-dot {
+    background: #62eaff;
+    box-shadow: 0 0 9px #62eaff;
+}
+
+#selection-name,
+#telemetry strong {
+    color: #7cecff;
+}
+
+.live-status {
+    border-color: rgba(70, 220, 255, 0.48);
+    color: #7cecff;
+    background: rgba(0, 10, 22, 0.64);
 }
