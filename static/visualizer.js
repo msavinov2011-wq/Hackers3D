@@ -917,10 +917,10 @@ function directoryClusterForce(strength = 0.045) {
 }
 
 function positionCameraForGraph(nodeCount) {
-    const graphRadius = Math.max(60, Math.min(900, Math.cbrt(Math.max(1, nodeCount)) * 34));
+    const graphRadius = Math.max(80, Math.min(1100, Math.cbrt(Math.max(1, nodeCount)) * 40));
     const cameraObject = controls.getObject();
 
-    cameraObject.position.set(0, Math.max(8, graphRadius * 0.08), graphRadius);
+    cameraObject.position.set(0, Math.max(12, graphRadius * 0.055), graphRadius);
     cameraObject.rotation.set(0, 0, 0);
     camera.lookAt(0, 0, 0);
 }
@@ -941,26 +941,100 @@ function createVisualization(root) {
         node.parentNode = node.parentId ? graphById.get(node.parentId) : null;
     }
 
-    // Deterministic 3D seed positions. Reproducible layouts make debugging much less
-    // entertaining than Math.random(), which is precisely why we are using them.
-    const spread = Math.max(45, Math.min(260, Math.cbrt(graphNodes.length) * 22));
+    // HACKERS spatial layout: keep the filesystem readable while preserving the
+    // huge 3D network feel. Directories occupy the large-scale volume; files orbit
+    // their parent directory instead of becoming an undifferentiated cloud.
+    const childrenByParent = new Map();
+    for (const node of graphNodes) {
+        if (!node.parentId) continue;
+        if (!childrenByParent.has(node.parentId)) childrenByParent.set(node.parentId, []);
+        childrenByParent.get(node.parentId).push(node);
+    }
+
+    const depthById = new Map();
+    const rootNode = graphNodes.find(node => !node.parentId);
+    if (rootNode) {
+        depthById.set(rootNode.id, 0);
+        const queue = [rootNode];
+        while (queue.length) {
+            const parent = queue.shift();
+            for (const child of childrenByParent.get(parent.id) || []) {
+                depthById.set(child.id, (depthById.get(parent.id) || 0) + 1);
+                queue.push(child);
+            }
+        }
+    }
+
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const directories = graphNodes.filter(node => node.isDir && node !== rootNode);
+    const rootChildren = rootNode ? (childrenByParent.get(rootNode.id) || []) : [];
+    const rootDirs = rootChildren.filter(node => node.isDir);
 
-    for (let i = 0; i < graphNodes.length; i++) {
-        const node = graphNodes[i];
+    if (rootNode) {
+        rootNode.x = 0;
+        rootNode.y = 0;
+        rootNode.z = 0;
+        rootNode.vx = 0;
+        rootNode.vy = 0;
+        rootNode.vz = 0;
+    }
+
+    // Large directory clusters form the skeleton of the world.
+    for (let i = 0; i < directories.length; i++) {
+        const dir = directories[i];
+        const parent = dir.parentId ? graphNodesById.get(dir.parentId) : null;
+        if (parent && parent !== rootNode) continue;
+
+        const angle = i * goldenAngle;
+        const radius = Math.max(105, Math.min(500, 105 + Math.sqrt(Math.max(1, rootDirs.length)) * 42));
+        dir.x = Math.cos(angle) * radius;
+        dir.y = Math.sin(angle * 1.37) * radius * 0.48;
+        dir.z = Math.sin(angle) * radius;
+        dir.vx = 0;
+        dir.vy = 0;
+        dir.vz = 0;
+    }
+
+    // Deeper directories inherit their parent's position and form smaller satellites.
+    for (let pass = 0; pass < 6; pass++) {
+        for (const dir of directories) {
+            if (dir.x !== undefined && dir.parentId === (rootNode && rootNode.id)) continue;
+            const parent = dir.parentId ? graphNodesById.get(dir.parentId) : null;
+            if (!parent || parent.x === undefined) continue;
+            const siblings = (childrenByParent.get(parent.id) || []).filter(node => node.isDir);
+            const index = Math.max(0, siblings.indexOf(dir));
+            const angle = index * goldenAngle + pass * 0.13;
+            const radius = Math.max(38, Math.min(150, 42 + Math.sqrt(Math.max(1, siblings.length)) * 14));
+            dir.x = (parent.x || 0) + Math.cos(angle) * radius;
+            dir.y = (parent.y || 0) + Math.sin(angle * 1.51) * radius * 0.58;
+            dir.z = (parent.z || 0) + Math.sin(angle) * radius;
+            dir.vx = 0;
+            dir.vy = 0;
+            dir.vz = 0;
+        }
+    }
+
+    // Files orbit their immediate directory. Larger folders get a wider local cloud.
+    for (const parent of graphNodes.filter(node => node.isDir)) {
+        const children = childrenByParent.get(parent.id) || [];
+        const files = children.filter(node => !node.isDir);
+        const radius = Math.max(24, Math.min(105, 24 + Math.sqrt(Math.max(1, files.length)) * 9));
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const angle = i * goldenAngle;
+            const localRadius = radius * (0.65 + Math.sqrt((i + 1) / Math.max(1, files.length)) * 0.72);
+            file.x = (parent.x || 0) + Math.cos(angle) * localRadius;
+            file.y = (parent.y || 0) + Math.sin(angle * 1.71) * localRadius * 0.62;
+            file.z = (parent.z || 0) + Math.sin(angle) * localRadius;
+            file.vx = 0;
+            file.vy = 0;
+            file.vz = 0;
+        }
+    }
+
+    for (const node of graphNodes) {
         node.mesh = createGraphNode(node);
-
-        const radius = spread * Math.sqrt((i + 1) / Math.max(1, graphNodes.length));
-        const theta = i * goldenAngle;
-        const y = ((i / Math.max(1, graphNodes.length - 1)) * 2 - 1) * spread * 0.55;
-        const horizontal = Math.sqrt(Math.max(0, 1 - Math.min(0.95, Math.abs(y / spread)) ** 2));
-
-        node.x = Math.cos(theta) * radius * horizontal;
-        node.y = y;
-        node.z = Math.sin(theta) * radius * horizontal;
-        node.vx = 0;
-        node.vy = 0;
-        node.vz = 0;
     }
 
     for (const link of graphLinks) {
@@ -969,6 +1043,33 @@ function createVisualization(root) {
     }
 
     createGraphLinks();
+
+    // Particle field inspired by the data-flow reference. It stays behind the
+    // filesystem graph and is deliberately sparse so the nodes remain readable.
+    const particleCount = Math.min(1400, Math.max(220, Math.floor(Math.sqrt(Math.max(1, graphNodes.length)) * 16)));
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleSpread = Math.max(220, Math.min(950, Math.cbrt(Math.max(1, graphNodes.length)) * 62));
+    for (let i = 0; i < particleCount; i++) {
+        const r = particleSpread * Math.cbrt((i + 1) / particleCount);
+        const theta = i * goldenAngle * 1.7;
+        const phi = Math.acos(1 - 2 * ((i + 0.5) / particleCount));
+        particlePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        particlePositions[i * 3 + 1] = r * Math.cos(phi);
+        particlePositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particleMaterial = new THREE.PointsMaterial({
+        color: 0x00ff66,
+        size: 1.1,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false
+    });
+    const particleField = new THREE.Points(particleGeometry, particleMaterial);
+    particleField.name = 'hackers-data-field';
+    particleField.frustumCulled = false;
+    scene.add(particleField);
 
     if (forceSimulation) forceSimulation.stop();
 
@@ -985,10 +1086,11 @@ function createVisualization(root) {
             const parent = link.source;
             return parent && parent.isDir ? 48 : 36;
         }).strength(0.68 * forceQuality))
-        .force('cluster', directoryClusterForce(0.075 * forceQuality))
-        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -165 : -78) * forceQuality).distanceMax(700))
-        .force('center', d3.forceCenter(0, 0, 0))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 9 : 6).strength(0.72 * forceQuality))
+        .force('cluster', directoryClusterForce(0.11 * forceQuality))
+        .force('layout', filesystemLayoutForce(0.13 * forceQuality))
+        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -125 : -48) * forceQuality).distanceMax(900))
+        .force('center', d3.forceCenter(0, 0, 0).strength(0.018 * forceQuality))
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 10 : 5.5).strength(0.62 * forceQuality))
         .alphaDecay(nodeCount > 5000 ? 0.035 : 0.02)
         .velocityDecay(0.4);
 
