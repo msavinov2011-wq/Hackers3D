@@ -1130,7 +1130,7 @@ function createVisualization(root) {
         if (!node.parentId) calculateNodeWeight(node);
     }
 
-    const maxVisualWeight = Math.max(
+    maxVisualWeight = Math.max(
         1,
         ...graphNodes.map(node => node.visualWeight || 1)
     );
