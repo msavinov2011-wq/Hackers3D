@@ -986,7 +986,7 @@ function createVisualization(root) {
         if (parent && parent !== rootNode) continue;
 
         const angle = i * goldenAngle;
-        const radius = Math.max(105, Math.min(500, 105 + Math.sqrt(Math.max(1, rootDirs.length)) * 42));
+        const radius = Math.max(72, Math.min(360, 72 + Math.sqrt(Math.max(1, rootDirs.length)) * 28));
         dir.x = Math.cos(angle) * radius;
         dir.y = Math.sin(angle * 1.37) * radius * 0.48;
         dir.z = Math.sin(angle) * radius;
@@ -1004,7 +1004,7 @@ function createVisualization(root) {
             const siblings = (childrenByParent.get(parent.id) || []).filter(node => node.isDir);
             const index = Math.max(0, siblings.indexOf(dir));
             const angle = index * goldenAngle + pass * 0.13;
-            const radius = Math.max(38, Math.min(150, 42 + Math.sqrt(Math.max(1, siblings.length)) * 14));
+            const radius = Math.max(24, Math.min(92, 28 + Math.sqrt(Math.max(1, siblings.length)) * 9));
             dir.x = (parent.x || 0) + Math.cos(angle) * radius;
             dir.y = (parent.y || 0) + Math.sin(angle * 1.51) * radius * 0.58;
             dir.z = (parent.z || 0) + Math.sin(angle) * radius;
@@ -1018,7 +1018,7 @@ function createVisualization(root) {
     for (const parent of graphNodes.filter(node => node.isDir)) {
         const children = childrenByParent.get(parent.id) || [];
         const files = children.filter(node => !node.isDir);
-        const radius = Math.max(24, Math.min(105, 24 + Math.sqrt(Math.max(1, files.length)) * 9));
+        const radius = Math.max(18, Math.min(72, 18 + Math.sqrt(Math.max(1, files.length)) * 6));
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -1082,15 +1082,18 @@ function createVisualization(root) {
     forceTickCounter = 0;
 
     forceSimulation = d3.forceSimulation(graphNodes, 3)
+        .force('cluster', directoryClusterForce(0.035 * forceQuality))
+        .force('layout', filesystemLayoutForce(0.055 * forceQuality))
         .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(link => {
-            const parent = link.source;
-            return parent && parent.isDir ? 48 : 36;
-        }).strength(0.68 * forceQuality))
-        .force('cluster', directoryClusterForce(0.11 * forceQuality))
-        .force('layout', filesystemLayoutForce(0.13 * forceQuality))
-        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -125 : -48) * forceQuality).distanceMax(900))
-        .force('center', d3.forceCenter(0, 0, 0).strength(0.018 * forceQuality))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 10 : 5.5).strength(0.62 * forceQuality))
+            const source = link.source;
+            const target = link.target;
+            if (source && source.isDir && target && target.isDir) return 54;
+            if (source && source.isDir) return 34;
+            return 30;
+        }).strength(0.9 * forceQuality))
+        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -72 : -24) * forceQuality).distanceMax(520))
+        .force('center', d3.forceCenter(0, 0, 0).strength(0.006 * forceQuality))
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 8 : 3.8).strength(0.42 * forceQuality))
         .alphaDecay(nodeCount > 5000 ? 0.035 : 0.02)
         .velocityDecay(0.4);
 
