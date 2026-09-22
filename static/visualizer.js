@@ -798,17 +798,26 @@ function createVisualization(root) {
 
     if (forceSimulation) forceSimulation.stop();
 
+    const nodeCount = graphNodes.length;
+    const forceQuality = nodeCount > 12000 ? 0.55 : nodeCount > 5000 ? 0.7 : 1;
+
     forceSimulation = d3.forceSimulation(graphNodes, 3)
         .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(link => {
             const parent = link.source;
             return parent && parent.isDir ? 48 : 36;
-        }).strength(0.68))
-        .force('cluster', directoryClusterForce(0.075))
-        .force('charge', d3.forceManyBody().strength(d => d.isDir ? -165 : -78).distanceMax(700))
+        }).strength(0.68 * forceQuality))
+        .force('cluster', directoryClusterForce(0.075 * forceQuality))
+        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -165 : -78) * forceQuality).distanceMax(700))
         .force('center', d3.forceCenter(0, 0, 0))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 9 : 6).strength(0.72))
-        .alphaDecay(0.02)
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 9 : 6).strength(0.72 * forceQuality))
+        .alphaDecay(nodeCount > 5000 ? 0.035 : 0.02)
         .velocityDecay(0.4);
+
+    // Keep the physics bounded. Very large real filesystems should degrade gracefully
+    // instead of turning the browser into a space heater.
+    if (nodeCount > 12000) {
+        forceSimulation.alphaMin(0.08);
+    }
 
     forceSimulation.on('tick', () => {
         for (const node of graphNodes) {
