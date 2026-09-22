@@ -1119,6 +1119,8 @@ function updateLinkHighlight() {
 }
 
 let lastIntersectionFrame = -10;
+let filesystemEventSource = null;
+let filesystemConnectionState = 'CONNECTING';
 
 function checkIntersections() {
     // Large graphs do not need a full raycast on every rendered frame.
@@ -1605,28 +1607,51 @@ function flyToObject(path) {
     document.getElementById('search-results').style.display = 'none';
 }
 
+function setFilesystemConnectionState(state) {
+    filesystemConnectionState = state;
+    const indicator = document.getElementById('filesystem-status');
+    if (!indicator) return;
+
+    indicator.textContent = state === 'LIVE'
+        ? 'FILESYSTEM // LIVE'
+        : state === 'RECONNECTING'
+            ? 'FILESYSTEM // RECONNECTING'
+            : 'FILESYSTEM // CONNECTING';
+
+    indicator.classList.toggle('offline', state !== 'LIVE');
+}
+
 function initFilesystemWatcher() {
     if (!window.EventSource) {
         console.warn('HACKERS3D: EventSource is not supported; live filesystem updates disabled.');
         return;
     }
 
-    const source = new EventSource('/api/events');
+    filesystemEventSource = new EventSource('/api/events');
+    setFilesystemConnectionState('CONNECTING');
 
-    source.addEventListener('filesystem', () => {
-        // Reload the authoritative filesystem snapshot after the debounced server event.
+    filesystemEventSource.addEventListener('open', () => {
+        setFilesystemConnectionState('LIVE');
+    });
+
+    filesystemEventSource.addEventListener('ready', () => {
+        setFilesystemConnectionState('LIVE');
+    });
+
+    filesystemEventSource.addEventListener('filesystem', () => {
         loadFilesystemData().catch(error => {
             console.error('HACKERS3D filesystem refresh failed:', error);
         });
     });
 
-    source.addEventListener('error', () => {
-        // EventSource automatically reconnects. Keep the HUD quiet instead of
-        // generating an alert every time the browser briefly loses the connection.
+    filesystemEventSource.addEventListener('error', () => {
+        setFilesystemConnectionState('RECONNECTING');
         console.warn('HACKERS3D filesystem event stream disconnected; reconnecting...');
     });
 
-    window.addEventListener('beforeunload', () => source.close(), { once: true });
+    window.addEventListener('beforeunload', () => {
+        if (filesystemEventSource) filesystemEventSource.close();
+    }, { once: true });
 }
 
 // Initialize and animate
