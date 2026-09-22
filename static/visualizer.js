@@ -777,20 +777,22 @@ let maxVisualWeight = 1;
 
 const sharedNodeMaterials = {
     directory: new THREE.MeshStandardMaterial({
-        color: 0x00ff66,
-        emissive: 0x003d1a,
-        emissiveIntensity: 1.5,
+        color: 0x74e9ff,
+        emissive: 0x0a8fc2,
+        emissiveIntensity: 2.2,
         transparent: true,
-        opacity: 0.72,
-        roughness: 0.35,
-        metalness: 0.15
+        opacity: 0.96,
+        roughness: 0.22,
+        metalness: 0.12
     }),
     file: new THREE.MeshStandardMaterial({
-        color: 0x00ff99,
-        emissive: 0x002b1c,
-        emissiveIntensity: 1.15,
-        roughness: 0.4,
-        metalness: 0.2
+        color: 0x1ac8ff,
+        emissive: 0x0076ad,
+        emissiveIntensity: 1.8,
+        transparent: true,
+        opacity: 0.92,
+        roughness: 0.26,
+        metalness: 0.08
     })
 };
 
@@ -869,32 +871,22 @@ function flattenFilesystemTree(root) {
 }
 
 function createGraphNode(node) {
-    // Node volume follows filesystem weight. Radius therefore scales with the
-    // cube root of bytes, which makes sphere volume approximately proportional
-    // to the represented data instead of making huge files visually enormous.
+    // Preserve the requested filesystem-size semantics, but keep the visual
+    // language closer to a real network visualization: compact luminous points,
+    // not oversized toy planets.
     const normalizedWeight = Math.cbrt(
         Math.max(1, node.visualWeight || node.size || 1) / Math.max(1, maxVisualWeight)
     );
-
-    const baseRadius = node.isDir ? 1.65 : 0.72;
-    const weightRadius = node.isDir ? 4.9 * normalizedWeight : 3.8 * normalizedWeight;
-    const radius = Math.min(
-        node.isDir ? 5.8 : 4.2,
-        baseRadius + weightRadius
-    );
+    const radius = node.isDir
+        ? Math.min(4.6, 1.55 + normalizedWeight * 3.05)
+        : Math.min(3.1, 0.62 + normalizedWeight * 2.15);
 
     const graphSize = graphNodes.length || 0;
-    const geometry = node.isDir
-        ? new THREE.SphereGeometry(
-            radius,
-            graphSize > 10000 ? 6 : graphSize > 2500 ? 8 : 16,
-            graphSize > 10000 ? 4 : graphSize > 2500 ? 6 : 12
-        )
-        : new THREE.SphereGeometry(
-            radius,
-            graphSize > 10000 ? 5 : graphSize > 2500 ? 6 : 12,
-            graphSize > 10000 ? 3 : graphSize > 2500 ? 4 : 8
-        );
+    const geometry = new THREE.SphereGeometry(
+        radius,
+        graphSize > 10000 ? 7 : graphSize > 2500 ? 10 : 18,
+        graphSize > 10000 ? 5 : graphSize > 2500 ? 7 : 12
+    );
 
     const material = node.isDir
         ? sharedNodeMaterials.directory
@@ -922,19 +914,26 @@ function createGraphNode(node) {
 }
 
 function createGraphLinks() {
-    if (!graphLinks.length) return;
+    if (!graphLinks.length && graphNodes.length < 2) return;
 
     visualNetworkLinks = [];
-    const maxVisualLinks = graphNodes.length > 12000 ? 26000
-        : graphNodes.length > 5000 ? 20000
-        : graphNodes.length > 2500 ? 14000
-        : 10000;
-    const neighborsPerNode = graphNodes.length > 5000 ? 4 : 7;
+    const nodeCount = graphNodes.length;
+    const neighborsPerNode = nodeCount > 12000 ? 5
+        : nodeCount > 5000 ? 7
+        : nodeCount > 2500 ? 9
+        : nodeCount > 600 ? 11
+        : nodeCount > 120 ? 13
+        : Math.min(18, Math.max(3, nodeCount - 1));
 
-    // Build the visual web from actual 3D proximity, not array order.
-    // This is what turns the filesystem into a spatial network instead of
-    // a collection of rings that merely happen to have lines between them.
-    const cellSize = graphNodes.length > 5000 ? 62 : 48;
+    const maxVisualLinks = nodeCount > 12000 ? 36000
+        : nodeCount > 5000 ? 30000
+        : nodeCount > 2500 ? 22000
+        : nodeCount > 600 ? 15000
+        : Math.max(300, nodeCount * neighborsPerNode);
+
+    // Spatial buckets make nearest-neighbour lookup cheap without imposing
+    // an artificial ring or grid. The links are the visual "threads" of the web.
+    const cellSize = nodeCount > 5000 ? 72 : nodeCount > 1000 ? 58 : 44;
     const grid = new Map();
     const keyFor = (x, y, z) => x + ',' + y + ',' + z;
 
@@ -962,9 +961,9 @@ function createGraphLinks() {
         const cz = Math.floor((node.z || 0) / cellSize);
         const candidates = [];
 
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
+                for (let dz = -2; dz <= 2; dz++) {
                     const bucket = grid.get(keyFor(cx + dx, cy + dy, cz + dz));
                     if (!bucket) continue;
                     for (const other of bucket) {
@@ -980,16 +979,20 @@ function createGraphLinks() {
 
         candidates.sort((a, b) => a.distance - b.distance);
         let added = 0;
+
         for (const candidate of candidates) {
             const other = candidate.other;
             const a = node.id;
             const b = other.id;
             const pairKey = a < b ? a + '|' + b : b + '|' + a;
             if (existing.has(pairKey) || visualKeys.has(pairKey)) continue;
+
             visualKeys.add(pairKey);
             visualNetworkLinks.push({ source: node, target: other });
+
             if (++added >= neighborsPerNode || visualNetworkLinks.length >= maxVisualLinks) break;
         }
+
         if (visualNetworkLinks.length >= maxVisualLinks) break;
     }
 
@@ -1003,14 +1006,16 @@ function createGraphLinks() {
 
     const colors = new Float32Array(allLinks.length * 6);
     for (let i = 0; i < allLinks.length; i++) {
-        const visual = i >= graphLinks.length;
-        const green = visual ? 0.34 : 0.92;
-        const blue = visual ? 0.12 : 0.34;
+        const filesystemEdge = i < graphLinks.length;
+        const r = filesystemEdge ? 0.08 : 0.02;
+        const g = filesystemEdge ? 0.58 : 0.42;
+        const b = filesystemEdge ? 0.95 : 0.85;
         const offset = i * 6;
+
         for (let side = 0; side < 2; side++) {
-            colors[offset + side * 3] = 0;
-            colors[offset + side * 3 + 1] = green;
-            colors[offset + side * 3 + 2] = blue;
+            colors[offset + side * 3] = r;
+            colors[offset + side * 3 + 1] = g;
+            colors[offset + side * 3 + 2] = b;
         }
     }
 
@@ -1019,7 +1024,7 @@ function createGraphLinks() {
     const material = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.78,
         depthWrite: false,
         blending: THREE.AdditiveBlending
     });
@@ -1085,6 +1090,81 @@ function positionCameraForGraph(nodeCount) {
     camera.lookAt(0, 0, 0);
 }
 
+function createNetworkAtmosphere(rootNode) {
+    // A restrained particle field gives the same depth as the reference images
+    // without creating the old "green ring" around the filesystem.
+    const count = Math.min(1800, Math.max(260, graphNodes.length * 2));
+    const positions = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const spreadX = Math.max(180, Math.min(900, Math.cbrt(Math.max(1, graphNodes.length)) * 92));
+    const spreadY = spreadX * 0.34;
+    const spreadZ = spreadX * 0.74;
+
+    for (let i = 0; i < count; i++) {
+        const source = graphNodes[i % Math.max(1, graphNodes.length)];
+        const seed = i * 0.754877666;
+        const jitter = 0.35 + ((i * 17) % 100) / 100;
+
+        positions[i * 3] = (source?.x || 0) + Math.cos(seed * 17.0) * spreadX * jitter;
+        positions[i * 3 + 1] = (source?.y || 0) + Math.sin(seed * 13.0) * spreadY * jitter;
+        positions[i * 3 + 2] = (source?.z || 0) + Math.cos(seed * 11.0) * spreadZ * jitter;
+        sizes[i] = 0.6 + ((i * 29) % 12) * 0.08;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+
+    const material = new THREE.PointsMaterial({
+        color: 0x1aaeff,
+        size: 1.15,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.name = 'hackers-network-atmosphere';
+    points.frustumCulled = false;
+    scene.add(points);
+
+    if (rootNode) {
+        const glowCanvas = document.createElement('canvas');
+        glowCanvas.width = 128;
+        glowCanvas.height = 128;
+        const ctx = glowCanvas.getContext('2d');
+        const gradient = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+        gradient.addColorStop(0, 'rgba(190,250,255,1)');
+        gradient.addColorStop(0.08, 'rgba(80,220,255,0.95)');
+        gradient.addColorStop(0.28, 'rgba(0,155,255,0.34)');
+        gradient.addColorStop(1, 'rgba(0,70,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 128, 128);
+
+        const texture = new THREE.CanvasTexture(glowCanvas);
+        const glowMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            color: 0x35d8ff,
+            transparent: true,
+            opacity: 0.72,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const glow = new THREE.Sprite(glowMaterial);
+        glow.name = 'hackers-core-glow';
+        glow.position.set(rootNode.x || 0, rootNode.y || 0, rootNode.z || 0);
+        glow.scale.set(150, 150, 1);
+        scene.add(glow);
+
+        const coreLight = new THREE.PointLight(0x36dfff, 4.2, 650, 1.7);
+        coreLight.position.copy(glow.position);
+        scene.add(coreLight);
+    }
+}
+
 function createVisualization(root) {
     const flattened = flattenFilesystemTree(root);
     graphNodes = flattened.nodes;
@@ -1135,30 +1215,32 @@ function createVisualization(root) {
         ...graphNodes.map(node => node.visualWeight || 1)
     );
 
-    // Organic 3D network seed: distribute every node through a volume.
-    // Filesystem hierarchy remains encoded by real links, but the geometry itself
-    // must read as one continuous web rather than directory rings and file orbits.
+    // Seed the network as a broad, shallow 3D cloud. The reference look is
+    // closer to a data-network plane than to a spherical "planet" of nodes.
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
     const nodeCountForLayout = Math.max(1, graphNodes.length);
-    const volumeScale = Math.max(130, Math.min(720, Math.cbrt(nodeCountForLayout) * 72));
+    const width = Math.max(150, Math.min(1100, Math.cbrt(nodeCountForLayout) * 115));
+    const depth = Math.max(100, Math.min(760, Math.cbrt(nodeCountForLayout) * 82));
+    const height = Math.max(55, Math.min(360, Math.cbrt(nodeCountForLayout) * 32));
 
     for (let i = 0; i < graphNodes.length; i++) {
         const node = graphNodes[i];
         const t = (i + 0.5) / nodeCountForLayout;
-        const radius = volumeScale * Math.cbrt(t);
-        const theta = i * goldenAngle * 1.73;
-        const phi = Math.acos(1 - 2 * t);
-        const jitter = 0.82 + ((i * 37) % 19) / 100;
+        const radial = Math.sqrt(t);
+        const theta = i * goldenAngle * 2.17;
+        const layer = Math.sin(i * 1.913) * 0.5 + Math.cos(i * 0.317) * 0.5;
+        const jitter = 0.78 + ((i * 37) % 23) / 100;
 
-        node.x = Math.sin(phi) * Math.cos(theta) * radius * jitter;
-        node.y = Math.cos(phi) * radius * jitter;
-        node.z = Math.sin(phi) * Math.sin(theta) * radius * jitter;
+        node.x = Math.cos(theta) * width * radial * jitter;
+        node.z = Math.sin(theta) * depth * radial * jitter;
+        node.y = layer * height * (0.45 + 0.55 * (1 - radial));
         node.vx = 0;
         node.vy = 0;
         node.vz = 0;
     }
 
-    // Keep the filesystem root near the center without rebuilding the whole cloud around it.
+    // Keep the filesystem root at the visual center: it becomes the network's
+    // brightest anchor, while the remaining nodes form the surrounding web.
     const rootNode = graphNodes.length ? graphNodes[0] : null;
     if (rootNode) {
         rootNode.x = 0;
@@ -1176,8 +1258,8 @@ function createVisualization(root) {
     }
 
     createGraphLinks();
-    // Keep the filesystem network itself as the primary visual. Background
-    // particle clouds made the structure read like a ring of unrelated dots.
+    createNetworkAtmosphere(rootNode);
+    createNetworkPulseField();
 
     if (forceSimulation) forceSimulation.stop();
 
@@ -1189,22 +1271,24 @@ function createVisualization(root) {
     graphLinkUpdateStride = nodeCount > 12000 ? 4 : nodeCount > 5000 ? 3 : nodeCount > 2500 ? 2 : 1;
     forceTickCounter = 0;
 
+    // Use the force engine only as a short, gentle settling pass. The visual
+    // identity comes from the spatial web, not from nodes bouncing around forever.
     forceSimulation = d3.forceSimulation(graphNodes, 3)
-        .force('cluster', directoryClusterForce(0.004 * forceQuality))
-        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(42).strength(0.52 * forceQuality))
-        .force('visual-link', d3.forceLink(visualNetworkLinks).id(d => d.id).distance(38).strength(0.28 * forceQuality))
-        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -18 : -6) * forceQuality).distanceMax(360))
-        .force('center', d3.forceCenter(0, 0, 0).strength(0.006 * forceQuality))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 3.8 : 1.5).strength(0.18 * forceQuality))
-        .alphaDecay(nodeCount > 5000 ? 0.065 : 0.045)
-        .velocityDecay(0.58);
+        .force('cluster', directoryClusterForce(0.0012 * forceQuality))
+        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(34).strength(0.12 * forceQuality))
+        .force('visual-link', d3.forceLink(visualNetworkLinks).id(d => d.id).distance(46).strength(0.055 * forceQuality))
+        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -5 : -1.6) * forceQuality).distanceMax(220))
+        .force('center', d3.forceCenter(0, 0, 0).strength(0.0015 * forceQuality))
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 3.2 : 1.1).strength(0.08 * forceQuality))
+        .alphaDecay(nodeCount > 5000 ? 0.16 : 0.12)
+        .velocityDecay(0.72);
 
     setTimeout(() => {
         if (forceSimulation) {
             forceSimulation.stop();
             updateGraphLinks();
         }
-    }, 3200);
+    }, 950);
 
     // Keep the physics bounded. Very large real filesystems should degrade gracefully
     // instead of turning the browser into a space heater.
