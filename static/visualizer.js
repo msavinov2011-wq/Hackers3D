@@ -625,6 +625,8 @@ function loadFilesystemData() {
         disposeObject(child);
     }
 
+    // Shared node materials survive normal mesh cleanup and are reused on the
+    // next graph load. Their lifecycle is managed separately.
     objects = [];
     objectDetails = new Map();
     objectsById = new Map();
@@ -676,13 +678,40 @@ let performanceNodeThreshold = 2500;
 let graphLinkUpdateStride = 1;
 let forceTickCounter = 0;
 
+const sharedNodeMaterials = {
+    directory: new THREE.MeshStandardMaterial({
+        color: 0x00ff66,
+        emissive: 0x003d1a,
+        emissiveIntensity: 1.2,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.35,
+        metalness: 0.15
+    }),
+    file: new THREE.MeshStandardMaterial({
+        color: 0x00ffaa,
+        emissive: 0x002b1c,
+        emissiveIntensity: 0.9,
+        roughness: 0.4,
+        metalness: 0.2
+    })
+};
+
 function disposeObject(object) {
     if (!object) return;
     if (object.geometry) object.geometry.dispose();
-    if (object.material) {
+    // Node materials are shared across the graph. Dispose them only through the
+    // dedicated shared-material lifecycle, not once per mesh during reload.
+    if (object.material && object.material !== sharedNodeMaterials.directory &&
+        object.material !== sharedNodeMaterials.file) {
         if (Array.isArray(object.material)) object.material.forEach(m => m.dispose());
         else object.material.dispose();
     }
+}
+
+function disposeSharedNodeMaterials() {
+    sharedNodeMaterials.directory.dispose();
+    sharedNodeMaterials.file.dispose();
 }
 
 function flattenFilesystemTree(root) {
@@ -766,22 +795,8 @@ function createGraphNode(node) {
         );
 
     const material = node.isDir
-        ? new THREE.MeshStandardMaterial({
-            color: 0x00ff66,
-            emissive: 0x003d1a,
-            emissiveIntensity: 1.2,
-            transparent: true,
-            opacity: 0.72,
-            roughness: 0.35,
-            metalness: 0.15
-        })
-        : new THREE.MeshStandardMaterial({
-            color: 0x00ffaa,
-            emissive: 0x002b1c,
-            emissiveIntensity: 0.9,
-            roughness: 0.4,
-            metalness: 0.2
-        });
+        ? sharedNodeMaterials.directory
+        : sharedNodeMaterials.file;
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData.graphNodeId = node.id;
