@@ -80,6 +80,20 @@ function updateSelectionPanel(details) {
 let searchInitialized = false;
 let highlightedLinkIndices = [];
 
+function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex++;
+    }
+    return value >= 10 || unitIndex === 0
+        ? Math.round(value) + ' ' + units[unitIndex]
+        : value.toFixed(1) + ' ' + units[unitIndex];
+}
+
 // Initialize the scene
 function init() {
     // Create scene
