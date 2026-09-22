@@ -186,13 +186,13 @@ function onKeyDown(event) {
             break;
         // Space key moves up continuously
         case 'Space':
+            // Space moves upward; Shift+Space moves downward.
             if (boost) {
-                // If Shift is pressed, move down
                 moveDown = true;
             } else {
-                // Otherwise move up
                 moveUp = true;
             }
+            event.preventDefault();
             break;
         case 'Escape':
             if (document.pointerLockElement) {
@@ -519,6 +519,7 @@ function onKeyUp(event) {
         case 'ShiftLeft':
         case 'ShiftRight':
             boost = false;
+            moveDown = false;
             break;
         case 'Space':
             moveUp = false;
