@@ -299,3 +299,16 @@ h1 {
     color: #ff5555;
     font-weight: bold;
 }
+/* HACKERS3D telemetry HUD */
+.hud-panel{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);background:linear-gradient(135deg,rgba(0,18,10,.92),rgba(0,0,0,.78));border:1px solid rgba(0,255,102,.65);box-shadow:0 0 14px rgba(0,255,102,.18),inset 0 0 18px rgba(0,255,102,.04)}
+.hud-title{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 8px rgba(0,255,102,.75)}
+.hud-dot{width:7px;height:7px;border-radius:50%;background:#00ff66;box-shadow:0 0 8px #00ff66}
+.hud-status,.hud-label{margin:5px 0 8px;font-size:10px;letter-spacing:1.5px;color:#00ffaa;opacity:.8}
+#action-info{margin-top:5px;color:#aaa;font-size:12px}
+#telemetry{position:absolute;left:10px;bottom:10px;width:190px;padding:10px 12px;z-index:100;pointer-events:none;font-size:11px}
+#telemetry>div:not(.hud-label){display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid rgba(0,255,102,.1)}
+#telemetry span{color:#777;letter-spacing:1px}#telemetry strong{color:#00ffaa;font-weight:normal}
+#selection-panel{position:absolute;right:10px;bottom:10px;width:290px;padding:12px;z-index:100;pointer-events:none;font-size:12px;opacity:.92}
+#selection-name{color:#00ff66;font-size:14px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#selection-details{margin-top:6px;color:#aaa;line-height:1.45;word-break:break-word}
+@media(max-width:700px){#info{max-width:260px}#controls-info{display:none}#telemetry{width:155px}#selection-panel{width:210px}#search-container{width:220px}}
