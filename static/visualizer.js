@@ -1113,7 +1113,8 @@ function createVisualization(root) {
         node.vz = 0;
     }
 
-    // Keep the root near the center without rebuilding the whole cloud around it.
+    // Keep the filesystem root near the center without rebuilding the whole cloud around it.
+    const rootNode = graphNodes.length ? graphNodes[0] : null;
     if (rootNode) {
         rootNode.x = 0;
         rootNode.y = 0;
