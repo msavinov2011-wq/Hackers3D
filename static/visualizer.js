@@ -629,6 +629,8 @@ function loadFilesystemData() {
 let forceSimulation = null;
 let graphNodes = [];
 let graphLinks = [];
+let graphChildrenById = new Map();
+let graphNeighborsById = new Map();
 let graphLine = null;
 let graphLinePositions = null;
 let graphLineGeometry = null;
@@ -677,7 +679,26 @@ function flattenFilesystemTree(root) {
     }
 
     walk(root, null);
-    return { nodes, links, byPath };
+
+    // Build adjacency once. Navigation and highlighting should not scan the full
+    // filesystem graph every time the user presses a key. Humans already do enough
+    // unnecessary work; the browser needn't join them.
+    const childrenById = new Map();
+    const neighborsById = new Map();
+    for (const node of nodes) {
+        childrenById.set(node.id, []);
+        neighborsById.set(node.id, new Set());
+    }
+    for (const link of links) {
+        if (!childrenById.has(link.source)) childrenById.set(link.source, []);
+        childrenById.get(link.source).push(link.target);
+        if (!neighborsById.has(link.source)) neighborsById.set(link.source, new Set());
+        if (!neighborsById.has(link.target)) neighborsById.set(link.target, new Set());
+        neighborsById.get(link.source).add(link.target);
+        neighborsById.get(link.target).add(link.source);
+    }
+
+    return { nodes, links, byPath, childrenById, neighborsById };
 }
 
 function createGraphNode(node) {
@@ -818,6 +839,8 @@ function createVisualization(root) {
     const flattened = flattenFilesystemTree(root);
     graphNodes = flattened.nodes;
     graphLinks = flattened.links;
+    graphChildrenById = flattened.childrenById;
+    graphNeighborsById = flattened.neighborsById;
 
     const graphById = new Map(graphNodes.map(node => [node.id, node]));
 
@@ -914,7 +937,8 @@ function navigateToRelatedNode(direction) {
     if (direction === 'parent' && currentNode.parentId) {
         target = graphNodes.find(node => node.id === currentNode.parentId);
     } else if (direction === 'child') {
-        target = graphNodes.find(node => node.parentId === currentId);
+        const children = graphChildrenById.get(currentId) || [];
+        target = graphNodes.find(node => node.id === children[0]);
     }
     if (!target) return;
 
