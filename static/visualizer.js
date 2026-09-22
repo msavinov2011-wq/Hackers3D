@@ -770,6 +770,15 @@ function directoryClusterForce(strength = 0.045) {
     return force;
 }
 
+function positionCameraForGraph(nodeCount) {
+    const graphRadius = Math.max(60, Math.min(900, Math.cbrt(Math.max(1, nodeCount)) * 34));
+    const cameraObject = controls.getObject();
+
+    cameraObject.position.set(0, Math.max(8, graphRadius * 0.08), graphRadius);
+    cameraObject.rotation.set(0, 0, 0);
+    camera.lookAt(0, 0, 0);
+}
+
 function createVisualization(root) {
     const flattened = flattenFilesystemTree(root);
     graphNodes = flattened.nodes;
@@ -840,6 +849,8 @@ function createVisualization(root) {
         }
         updateGraphLinks();
     });
+
+    positionCameraForGraph(graphNodes.length);
 
     console.log('HACKERS3D graph:', {
         nodes: graphNodes.length,
