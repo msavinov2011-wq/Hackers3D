@@ -1148,7 +1148,6 @@ function createVisualization(root) {
 
     forceSimulation = d3.forceSimulation(graphNodes, 3)
         .force('cluster', directoryClusterForce(0.004 * forceQuality))
-        .force('layout', filesystemLayoutForce(0.006 * forceQuality))
         .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(42).strength(0.52 * forceQuality))
         .force('visual-link', d3.forceLink(visualNetworkLinks).id(d => d.id).distance(38).strength(0.28 * forceQuality))
         .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -18 : -6) * forceQuality).distanceMax(360))
