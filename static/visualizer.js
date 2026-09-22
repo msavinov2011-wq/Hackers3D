@@ -39,10 +39,12 @@ function updateTelemetry() {
 function updateSelectionPanel(details) {
     const name = document.getElementById('selection-name');
     const info = document.getElementById('selection-details');
+    const relations = document.getElementById('selection-relations');
     if (!name || !info) return;
     if (!details) {
         name.textContent = 'NONE';
         info.textContent = 'Click a node to inspect it';
+        if (relations) relations.innerHTML = 'PARENT: NONE<br>CHILDREN: 0<br>LINKS: 0';
         return;
     }
     name.textContent = details.name;
@@ -52,6 +54,19 @@ function updateSelectionPanel(details) {
         details.type === 'File' ? '<strong>Size:</strong> ' + details.size : '<strong>Items:</strong> ' + details.children,
         '<strong>Modified:</strong> ' + details.modified
     ].join('<br>');
+
+    if (relations) {
+        const node = graphNodes.find(item => item.id === details.path);
+        const parentName = node && node.parentId
+            ? (graphNodes.find(item => item.id === node.parentId)?.name || node.parentId)
+            : 'NONE';
+        const childrenCount = node ? (graphChildrenById.get(node.id) || []).length : 0;
+        const linksCount = node ? (graphNeighborsById.get(node.id) || new Set()).size : 0;
+        relations.innerHTML =
+            'PARENT: ' + parentName +
+            '<br>CHILDREN: ' + childrenCount +
+            '<br>LINKS: ' + linksCount;
+    }
 }
 let searchInitialized = false;
 let highlightedLinkIndices = [];
