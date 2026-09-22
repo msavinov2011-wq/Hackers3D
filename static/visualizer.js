@@ -88,7 +88,9 @@ function init() {
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    // Cap device pixel ratio: 3x/4x mobile and HiDPI displays can otherwise
+    // multiply fragment work for no useful gain in a dense 3D graph.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.getElementById('container').appendChild(renderer.domElement);
 
@@ -659,6 +661,8 @@ let graphLineGeometry = null;
 let frameCounter = 0;
 let lastCullCameraPosition = new THREE.Vector3();
 let performanceNodeThreshold = 2500;
+let graphLinkUpdateStride = 1;
+let forceTickCounter = 0;
 
 function disposeObject(object) {
     if (!object) return;
@@ -731,9 +735,18 @@ function createGraphNode(node) {
         ? Math.min(7, 2.8 + Math.log2(node.childrenCount + 1) * 0.9)
         : Math.min(4.5, 1.6 + Math.log2(node.size + 1) * 0.12);
 
+    const graphSize = graphNodes.length || 0;
     const geometry = node.isDir
-        ? new THREE.SphereGeometry(radius, 16, 12)
-        : new THREE.SphereGeometry(radius, 12, 8);
+        ? new THREE.SphereGeometry(
+            radius,
+            graphSize > 10000 ? 6 : graphSize > 2500 ? 8 : 16,
+            graphSize > 10000 ? 4 : graphSize > 2500 ? 6 : 12
+        )
+        : new THREE.SphereGeometry(
+            radius,
+            graphSize > 10000 ? 5 : graphSize > 2500 ? 6 : 12,
+            graphSize > 10000 ? 3 : graphSize > 2500 ? 4 : 8
+        );
 
     const material = node.isDir
         ? new THREE.MeshStandardMaterial({
@@ -907,6 +920,11 @@ function createVisualization(root) {
 
     const nodeCount = graphNodes.length;
     const forceQuality = nodeCount > 12000 ? 0.55 : nodeCount > 5000 ? 0.7 : 1;
+    // Link geometry is CPU-updated from the force simulation. For large graphs,
+    // updating every physics tick wastes work that the renderer cannot meaningfully
+    // present at full simulation frequency.
+    graphLinkUpdateStride = nodeCount > 12000 ? 4 : nodeCount > 5000 ? 3 : nodeCount > 2500 ? 2 : 1;
+    forceTickCounter = 0;
 
     forceSimulation = d3.forceSimulation(graphNodes, 3)
         .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(link => {
@@ -927,9 +945,18 @@ function createVisualization(root) {
     }
 
     forceSimulation.on('tick', () => {
+        forceTickCounter++;
         for (const node of graphNodes) {
             node.mesh.position.set(node.x || 0, node.y || 0, node.z || 0);
         }
+        if (forceTickCounter % graphLinkUpdateStride === 0) {
+            updateGraphLinks();
+        }
+    });
+
+    forceSimulation.on('end', () => {
+        // Always publish the final settled positions even when the stride skipped
+        // the last few ticks.
         updateGraphLinks();
     });
 
