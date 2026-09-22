@@ -7,14 +7,29 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div id="info">
-        <h1>HACKERS3D</h1>
+    <div id="info" class="hud-panel">
+        <div class="hud-title"><span class="hud-dot"></span> HACKERS3D</div>
+        <div class="hud-status">FILESYSTEM // ONLINE</div>
         <div id="hover-info">Hover over a node to inspect it</div>
+        <div id="controls-info">WASD / Mouse: fly  •  SPACE: up  •  SHIFT+SPACE: down  •  SHIFT: boost</div>
+        <div id="action-info">R: rename  •  DELETE: delete  •  CLICK: interact</div>
+    </div>
+    <div id="telemetry" class="hud-panel">
+        <div class="hud-label">FLIGHT TELEMETRY</div>
+        <div><span>MODE</span><strong id="flight-mode">FREE FLIGHT</strong></div>
+        <div><span>BOOST</span><strong id="boost-status">OFF</strong></div>
+        <div><span>NODES</span><strong id="node-count">0</strong></div>
+    </div>
         <div id="controls-info">WASD / Mouse: fly  •  SPACE: up  •  SHIFT+SPACE: down  •  SHIFT: boost  •  R: rename  •  DELETE: delete</div>
     </div>
     <div id="search-container">
         <input type="text" id="search-bar" placeholder="Search filesystem..." autocomplete="off">
         <div id="search-results"></div>
+    </div>
+    <div id="selection-panel" class="hud-panel">
+        <div class="hud-label">SELECTED NODE</div>
+        <div id="selection-name">NONE</div>
+        <div id="selection-details">Click a node to inspect it</div>
     </div>
     <div id="crosshair">+</div>
     <div id="container"></div>
