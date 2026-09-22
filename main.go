@@ -93,6 +93,17 @@ var (
 	ignoreDirMap map[string]bool // For faster lookups
 )
 
+// isWithinRoot verifies that a resolved path is actually inside the configured
+// filesystem root. Prefix checks alone are unsafe: /root-other also starts with /root.
+func isWithinRoot(path string) bool {
+    relative, err := filepath.Rel(absPath, path)
+    if err != nil {
+        return false
+    }
+    return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)))
+}
+
+
 func main() {
 	var rootPath string
 	var port int
@@ -171,7 +182,7 @@ func main() {
 		path := filepath.Join(absPath, relativePath)
 
 		// Security check - only allow paths within our root directory
-		if !strings.HasPrefix(path, absPath) {
+		if !isWithinRoot(path) {
 			http.Error(w, "Access denied: path outside of root directory", http.StatusForbidden)
 			return
 		}
@@ -249,7 +260,7 @@ func main() {
 		oldPath := filepath.Join(absPath, requestData.Path)
 
 		// Security check - only allow paths within our root directory
-		if !strings.HasPrefix(oldPath, absPath) {
+		if !isWithinRoot(oldPath) {
 			http.Error(w, "Access denied: path outside of root directory", http.StatusForbidden)
 			return
 		}
@@ -310,7 +321,7 @@ func main() {
 		fullPath := filepath.Join(absPath, requestData.Path)
 
 		// Security check - only allow paths within our root directory
-		if !strings.HasPrefix(fullPath, absPath) {
+		if !isWithinRoot(fullPath) {
 			http.Error(w, "Access denied: path outside of root directory", http.StatusForbidden)
 			return
 		}
