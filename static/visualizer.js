@@ -222,6 +222,12 @@ function onKeyDown(event) {
             }
             event.preventDefault();
             break;
+        case 'KeyP':
+            navigateToRelatedNode('parent');
+            break;
+        case 'KeyC':
+            navigateToRelatedNode('child');
+            break;
         case 'Escape':
             if (document.pointerLockElement) {
                 document.exitPointerLock();
@@ -885,6 +891,40 @@ function createVisualization(root) {
         nodes: graphNodes.length,
         links: graphLinks.length
     });
+}
+
+function selectGraphNode(object) {
+    if (!object) return;
+    const details = objectDetails.get(object.id);
+    if (!details) return;
+
+    selectedObject = object;
+    highlightedObject = object;
+    updateSelectionPanel(details);
+    updateLinkHighlight();
+}
+
+function navigateToRelatedNode(direction) {
+    if (!highlightedObject || !highlightedObject.userData.graphNodeId) return;
+    const currentId = highlightedObject.userData.graphNodeId;
+    const currentNode = graphNodes.find(node => node.id === currentId);
+    if (!currentNode) return;
+
+    let target = null;
+    if (direction === 'parent' && currentNode.parentId) {
+        target = graphNodes.find(node => node.id === currentNode.parentId);
+    } else if (direction === 'child') {
+        target = graphNodes.find(node => node.parentId === currentId);
+    }
+    if (!target) return;
+
+    const targetObject = objects.find(object =>
+        object.userData && object.userData.graphNodeId === target.id
+    );
+    if (!targetObject) return;
+
+    selectGraphNode(targetObject);
+    flyToObject(target.path);
 }
 
 function updateLinkHighlight() {
