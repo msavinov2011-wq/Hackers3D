@@ -655,6 +655,7 @@ let graphNodes = [];
 let graphLinks = [];
 let graphChildrenById = new Map();
 let graphNeighborsById = new Map();
+let graphEdgeIndicesByNodeId = new Map();
 let graphLine = null;
 let graphLinePositions = null;
 let graphLineGeometry = null;
@@ -714,20 +715,25 @@ function flattenFilesystemTree(root) {
     // unnecessary work; the browser needn't join them.
     const childrenById = new Map();
     const neighborsById = new Map();
+    const edgeIndicesByNodeId = new Map();
     for (const node of nodes) {
         childrenById.set(node.id, []);
         neighborsById.set(node.id, new Set());
+        edgeIndicesByNodeId.set(node.id, []);
     }
-    for (const link of links) {
+    for (let i = 0; i < links.length; i++) {
+        const link = links[i];
         if (!childrenById.has(link.source)) childrenById.set(link.source, []);
         childrenById.get(link.source).push(link.target);
         if (!neighborsById.has(link.source)) neighborsById.set(link.source, new Set());
         if (!neighborsById.has(link.target)) neighborsById.set(link.target, new Set());
         neighborsById.get(link.source).add(link.target);
         neighborsById.get(link.target).add(link.source);
+        edgeIndicesByNodeId.get(link.source)?.push(i);
+        edgeIndicesByNodeId.get(link.target)?.push(i);
     }
 
-    return { nodes, links, byPath, childrenById, neighborsById };
+    return { nodes, links, byPath, childrenById, neighborsById, edgeIndicesByNodeId };
 }
 
 function createGraphNode(node) {
@@ -879,6 +885,7 @@ function createVisualization(root) {
     graphLinks = flattened.links;
     graphChildrenById = flattened.childrenById;
     graphNeighborsById = flattened.neighborsById;
+    graphEdgeIndicesByNodeId = flattened.edgeIndicesByNodeId;
 
     const graphById = new Map(graphNodes.map(node => [node.id, node]));
 
@@ -1045,6 +1052,8 @@ function updateLinkHighlight() {
     if (!graphLine || !graphLine.geometry || !graphLine.geometry.attributes.color) return;
     const colors = graphLine.geometry.attributes.color.array;
 
+    // Restore only links that were highlighted during the previous selection.
+    // For large graphs this avoids scanning every edge just to reset green.
     for (const index of highlightedLinkIndices) {
         const offset = index * 6;
         for (let i = 0; i < 6; i += 3) {
@@ -1063,25 +1072,23 @@ function updateLinkHighlight() {
     const selectedId = highlightedObject.userData.graphNodeId;
     const neighborIds = graphNeighborsById.get(selectedId) || new Set();
 
-    for (let i = 0; i < graphLinks.length; i++) {
-        const link = graphLinks[i];
-        const sourceId = link.source.id;
-        const targetId = link.target.id;
-        if (sourceId === selectedId || targetId === selectedId) {
-            highlightedLinkIndices.push(i);
-            const offset = i * 6;
-            for (let j = 0; j < 6; j += 3) {
-                colors[offset + j] = 1;
-                colors[offset + j + 1] = 1;
-                colors[offset + j + 2] = 1;
-            }
+    // Use the indexed neighbor set to identify the selected node's direct
+    // relationships. Then map those neighbors to edge indices once per graph.
+    // This removes the O(E) scan from every render frame.
+    const edgeIndicesByNodeId = graphEdgeIndicesByNodeId;
+    const selectedEdges = edgeIndicesByNodeId.get(selectedId) || [];
+
+    for (const i of selectedEdges) {
+        const offset = i * 6;
+        highlightedLinkIndices.push(i);
+        for (let j = 0; j < 6; j += 3) {
+            colors[offset + j] = 1;
+            colors[offset + j + 1] = 1;
+            colors[offset + j + 2] = 1;
         }
     }
 
-    // Keep the adjacency index hot for future multi-hop interaction without
-    // changing the visual semantics of direct-edge highlighting.
     highlightedObject.userData.neighborCount = neighborIds.size;
-
     graphLine.geometry.attributes.color.needsUpdate = true;
 }
 
