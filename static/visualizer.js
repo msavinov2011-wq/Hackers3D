@@ -31,9 +31,19 @@ function updateTelemetry() {
     const nodeCount = document.getElementById('node-count');
     const boostStatus = document.getElementById('boost-status');
     const flightMode = document.getElementById('flight-mode');
-    if (nodeCount) nodeCount.textContent = String(graphNodes.length || 0);
-    if (boostStatus) boostStatus.textContent = boost ? 'ON' : 'OFF';
-    if (flightMode) flightMode.textContent = isFlying ? 'AUTO PILOT' : 'FREE FLIGHT';
+    const currentNodeCount = graphNodes.length || 0;
+    if (nodeCount && currentNodeCount !== lastTelemetryNodeCount) {
+        nodeCount.textContent = String(currentNodeCount);
+        lastTelemetryNodeCount = currentNodeCount;
+    }
+    if (boostStatus) {
+        const nextBoost = boost ? 'ON' : 'OFF';
+        if (boostStatus.textContent !== nextBoost) boostStatus.textContent = nextBoost;
+    }
+    if (flightMode) {
+        const nextMode = isFlying ? 'AUTO PILOT' : 'FREE FLIGHT';
+        if (flightMode.textContent !== nextMode) flightMode.textContent = nextMode;
+    }
 }
 
 function updateSelectionPanel(details) {
@@ -660,6 +670,7 @@ let graphLine = null;
 let graphLinePositions = null;
 let graphLineGeometry = null;
 let frameCounter = 0;
+let lastTelemetryNodeCount = -1;
 let lastCullCameraPosition = new THREE.Vector3();
 let performanceNodeThreshold = 2500;
 let graphLinkUpdateStride = 1;
