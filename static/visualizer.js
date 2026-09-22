@@ -1058,7 +1058,15 @@ function updateLinkHighlight() {
     graphLine.geometry.attributes.color.needsUpdate = true;
 }
 
+let lastIntersectionFrame = -10;
+
 function checkIntersections() {
+    // Large graphs do not need a full raycast on every rendered frame.
+    if (graphNodes.length > performanceNodeThreshold && frameCounter - lastIntersectionFrame < 3) {
+        return;
+    }
+    lastIntersectionFrame = frameCounter;
+
     // Update the raycaster with the current camera and mouse position
     raycaster.setFromCamera(mouse, camera);
     
@@ -1190,7 +1198,7 @@ function updateLargeGraphCulling() {
         node.mesh.visible = visible;
     }
 
-    if (graphLine) graphLine.visible = graphNodes.length <= 8000 || true;
+    if (graphLine) graphLine.visible = true;
 }
 
 function animate() {
