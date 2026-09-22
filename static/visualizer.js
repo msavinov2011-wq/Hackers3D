@@ -626,7 +626,7 @@ function loadFilesystemData() {
     }
 
     // Shared node materials survive normal mesh cleanup and are reused on the
-    // next graph load. Their lifecycle is managed separately.
+    // next graph load. They remain alive for the lifetime of the renderer.
     objects = [];
     objectDetails = new Map();
     objectsById = new Map();
@@ -707,11 +707,6 @@ function disposeObject(object) {
         if (Array.isArray(object.material)) object.material.forEach(m => m.dispose());
         else object.material.dispose();
     }
-}
-
-function disposeSharedNodeMaterials() {
-    sharedNodeMaterials.directory.dispose();
-    sharedNodeMaterials.file.dispose();
 }
 
 function flattenFilesystemTree(root) {
