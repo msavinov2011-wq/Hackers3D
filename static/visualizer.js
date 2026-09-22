@@ -609,6 +609,13 @@ function onWindowResize() {
 }
 
 function loadFilesystemData() {
+    if (filesystemReloadInProgress) {
+        filesystemReloadQueued = true;
+        return Promise.resolve();
+    }
+    filesystemReloadInProgress = true;
+    filesystemReloadQueued = false;
+
     if (forceSimulation) {
         forceSimulation.stop();
         forceSimulation = null;
@@ -660,7 +667,14 @@ function loadFilesystemData() {
             createVisualization(filesystemData);
             initSearch();
         })
-        .catch(error => console.error('Error loading filesystem data:', error));
+        .catch(error => console.error('Error loading filesystem data:', error))
+        .finally(() => {
+            filesystemReloadInProgress = false;
+            if (filesystemReloadQueued) {
+                filesystemReloadQueued = false;
+                loadFilesystemData();
+            }
+        });
 }
 
 let forceSimulation = null;
@@ -1121,6 +1135,8 @@ function updateLinkHighlight() {
 let lastIntersectionFrame = -10;
 let filesystemEventSource = null;
 let filesystemConnectionState = 'CONNECTING';
+let filesystemReloadInProgress = false;
+let filesystemReloadQueued = false;
 
 function checkIntersections() {
     // Large graphs do not need a full raycast on every rendered frame.
