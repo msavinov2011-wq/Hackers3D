@@ -778,16 +778,16 @@ const sharedNodeMaterials = {
     directory: new THREE.MeshStandardMaterial({
         color: 0x00ff66,
         emissive: 0x003d1a,
-        emissiveIntensity: 1.2,
+        emissiveIntensity: 1.5,
         transparent: true,
         opacity: 0.72,
         roughness: 0.35,
         metalness: 0.15
     }),
     file: new THREE.MeshStandardMaterial({
-        color: 0x00ffaa,
+        color: 0x00ff99,
         emissive: 0x002b1c,
-        emissiveIntensity: 0.9,
+        emissiveIntensity: 1.15,
         roughness: 0.4,
         metalness: 0.2
     })
@@ -868,9 +868,11 @@ function flattenFilesystemTree(root) {
 }
 
 function createGraphNode(node) {
+    // Nodes are deliberately small: the network lines should define the shape,
+    // while nodes act as connection points rather than oversized blocks.
     const radius = node.isDir
-        ? Math.min(4.8, 2.1 + Math.log2(node.childrenCount + 1) * 0.45)
-        : Math.min(2.8, 1.15 + Math.log2(node.size + 1) * 0.055);
+        ? Math.min(3.2, 1.45 + Math.log2(node.childrenCount + 1) * 0.28)
+        : Math.min(1.8, 0.72 + Math.log2(node.size + 1) * 0.028);
 
     const graphSize = graphNodes.length || 0;
     const geometry = node.isDir
@@ -914,16 +916,16 @@ function createGraphLinks() {
     if (!graphLinks.length) return;
 
     visualNetworkLinks = [];
-    const maxVisualLinks = graphNodes.length > 12000 ? 18000
-        : graphNodes.length > 5000 ? 14000
-        : graphNodes.length > 2500 ? 9000
-        : 6500;
-    const neighborsPerNode = graphNodes.length > 5000 ? 3 : 5;
+    const maxVisualLinks = graphNodes.length > 12000 ? 26000
+        : graphNodes.length > 5000 ? 20000
+        : graphNodes.length > 2500 ? 14000
+        : 10000;
+    const neighborsPerNode = graphNodes.length > 5000 ? 4 : 7;
 
     // Build the visual web from actual 3D proximity, not array order.
     // This is what turns the filesystem into a spatial network instead of
     // a collection of rings that merely happen to have lines between them.
-    const cellSize = graphNodes.length > 5000 ? 70 : 55;
+    const cellSize = graphNodes.length > 5000 ? 62 : 48;
     const grid = new Map();
     const keyFor = (x, y, z) => x + ',' + y + ',' + z;
 
@@ -1008,7 +1010,7 @@ function createGraphLinks() {
     const material = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.56,
+        opacity: 0.92,
         depthWrite: false,
         blending: THREE.AdditiveBlending
     });
@@ -1131,34 +1133,8 @@ function createVisualization(root) {
     }
 
     createGraphLinks();
-    createNetworkPulseField();
-
-    // Particle field inspired by the data-flow reference. It stays behind the
-    // filesystem graph and is deliberately sparse so the nodes remain readable.
-    const particleCount = Math.min(1400, Math.max(220, Math.floor(Math.sqrt(Math.max(1, graphNodes.length)) * 16)));
-    const particlePositions = new Float32Array(particleCount * 3);
-    const particleSpread = Math.max(220, Math.min(950, Math.cbrt(Math.max(1, graphNodes.length)) * 62));
-    for (let i = 0; i < particleCount; i++) {
-        const r = particleSpread * Math.cbrt((i + 1) / particleCount);
-        const theta = i * goldenAngle * 1.7;
-        const phi = Math.acos(1 - 2 * ((i + 0.5) / particleCount));
-        particlePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-        particlePositions[i * 3 + 1] = r * Math.cos(phi);
-        particlePositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-    }
-    const particleGeometry = new THREE.BufferGeometry();
-    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMaterial = new THREE.PointsMaterial({
-        color: 0x00ff66,
-        size: 1.1,
-        transparent: true,
-        opacity: 0.28,
-        depthWrite: false
-    });
-    const particleField = new THREE.Points(particleGeometry, particleMaterial);
-    particleField.name = 'hackers-data-field';
-    particleField.frustumCulled = false;
-    scene.add(particleField);
+    // Keep the filesystem network itself as the primary visual. Background
+    // particle clouds made the structure read like a ring of unrelated dots.
 
     if (forceSimulation) forceSimulation.stop();
 
@@ -1171,13 +1147,13 @@ function createVisualization(root) {
     forceTickCounter = 0;
 
     forceSimulation = d3.forceSimulation(graphNodes, 3)
-        .force('cluster', directoryClusterForce(0.008 * forceQuality))
-        .force('layout', filesystemLayoutForce(0.012 * forceQuality))
-        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(58).strength(0.34 * forceQuality))
-        .force('visual-link', d3.forceLink(visualNetworkLinks).id(d => d.id).distance(46).strength(0.16 * forceQuality))
-        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -34 : -13) * forceQuality).distanceMax(420))
-        .force('center', d3.forceCenter(0, 0, 0).strength(0.003 * forceQuality))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 5.5 : 2.3).strength(0.25 * forceQuality))
+        .force('cluster', directoryClusterForce(0.004 * forceQuality))
+        .force('layout', filesystemLayoutForce(0.006 * forceQuality))
+        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(42).strength(0.52 * forceQuality))
+        .force('visual-link', d3.forceLink(visualNetworkLinks).id(d => d.id).distance(38).strength(0.28 * forceQuality))
+        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -18 : -6) * forceQuality).distanceMax(360))
+        .force('center', d3.forceCenter(0, 0, 0).strength(0.006 * forceQuality))
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 3.8 : 1.5).strength(0.18 * forceQuality))
         .alphaDecay(nodeCount > 5000 ? 0.065 : 0.045)
         .velocityDecay(0.58);
 
