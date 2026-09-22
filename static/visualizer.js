@@ -85,11 +85,18 @@ let highlightedLinkIndices = [];
 function init() {
     // Load font first
     const fontLoader = new THREE.FontLoader();
-    fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.132.2/examples/fonts/helvetiker_regular.typeface.json', function(loadedFont) {
-        font = loadedFont;
-        // Once font is loaded, load filesystem data
-        loadFilesystemData();
-    });
+    fontLoader.load(
+        'https://cdn.jsdelivr.net/npm/three@0.132.2/examples/fonts/helvetiker_regular.typeface.json',
+        function(loadedFont) {
+            font = loadedFont;
+        },
+        undefined,
+        function(error) {
+            // The 3D filesystem must not depend on the optional font CDN.
+            // Keep the graph/search usable even when the external font fails.
+            console.warn('HACKERS3D: font load failed; continuing without font.', error);
+        }
+    );
     
     // Create scene
     scene = new THREE.Scene();
@@ -180,6 +187,10 @@ function init() {
     document.addEventListener('contextmenu', function(event) {
         event.preventDefault();
     });
+
+    // Filesystem loading is independent from the optional font resource.
+    // Start it after the scene, renderer and controls are fully initialized.
+    loadFilesystemData();
 
     window.addEventListener('blur', clearMovementState);
     document.addEventListener('visibilitychange', function() {
