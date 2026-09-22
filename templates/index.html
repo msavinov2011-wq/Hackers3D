@@ -40,6 +40,38 @@
     <div id="crosshair">+</div>
     <div id="container"></div>
 
+    <div id="boot-diagnostic" style="position:fixed;left:10px;bottom:10px;z-index:5000;padding:8px 10px;background:#00140a;border:1px solid #00ff66;color:#00ff66;font:11px monospace;display:none;max-width:80vw;white-space:pre-wrap"></div>
+
+    <script>
+        (function () {
+            const box = document.getElementById('boot-diagnostic');
+            function show(message) {
+                box.textContent = 'HACKERS3D BOOT ERROR\n' + message;
+                box.style.display = 'block';
+            }
+            window.addEventListener('error', function (event) {
+                const target = event.target;
+                if (target && target.tagName === 'SCRIPT') {
+                    show('Script failed to load: ' + (target.src || 'inline script'));
+                } else if (event.error) {
+                    show(event.error.stack || event.error.message || String(event.error));
+                } else {
+                    show(event.message || 'Unknown frontend error');
+                }
+            }, true);
+            window.addEventListener('unhandledrejection', function (event) {
+                show('Unhandled promise rejection: ' + (event.reason && (event.reason.stack || event.reason.message) || String(event.reason)));
+            });
+            window.addEventListener('load', function () {
+                if (window.THREE && window.d3) {
+                    box.textContent = 'HACKERS3D BOOT: dependencies loaded';
+                    box.style.display = 'block';
+                    setTimeout(() => { box.style.display = 'none'; }, 1800);
+                }
+            }, { once: true });
+        })();
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/FontLoader.js"></script>
