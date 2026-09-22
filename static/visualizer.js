@@ -1235,7 +1235,6 @@ function checkIntersections() {
             
             // Update crosshair
             crosshair.classList.add('active');
-        }
     } else {
         // No intersection, show default text
         hoverInfo.innerHTML = 'Hover over an object to see details';
