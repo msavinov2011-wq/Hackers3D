@@ -971,6 +971,8 @@ function updateLinkHighlight() {
     }
 
     const selectedId = highlightedObject.userData.graphNodeId;
+    const neighborIds = graphNeighborsById.get(selectedId) || new Set();
+
     for (let i = 0; i < graphLinks.length; i++) {
         const link = graphLinks[i];
         const sourceId = link.source.id;
@@ -985,6 +987,10 @@ function updateLinkHighlight() {
             }
         }
     }
+
+    // Keep the adjacency index hot for future multi-hop interaction without
+    // changing the visual semantics of direct-edge highlighting.
+    highlightedObject.userData.neighborCount = neighborIds.size;
 
     graphLine.geometry.attributes.color.needsUpdate = true;
 }
