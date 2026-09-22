@@ -25,6 +25,8 @@ let isFlying = false; // Flag to indicate if camera is automatically flying
 let flyingTarget = null; // Target position for automatic flying
 let flyingLookAt = null; // Look at position for automatic flying
 let searchFocused = false; // Flag to track if search is focused
+let searchInitialized = false;
+let highlightedLinkIndices = [];
 
 // Initialize the scene
 function init() {
@@ -682,8 +684,16 @@ function createGraphLinks() {
         new THREE.BufferAttribute(graphLinePositions, 3)
     );
 
+    const colors = new Float32Array(graphLinks.length * 6);
+    for (let i = 0; i < colors.length; i += 3) {
+        colors[i] = 0;
+        colors[i + 1] = 1;
+        colors[i + 2] = 0.4;
+    }
+    graphLineGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
     const material = new THREE.LineBasicMaterial({
-        color: 0x00ff66,
+        vertexColors: true,
         transparent: true,
         opacity: 0.38
     });
@@ -761,6 +771,44 @@ function createVisualization(root) {
         nodes: graphNodes.length,
         links: graphLinks.length
     });
+}
+
+function updateLinkHighlight() {
+    if (!graphLine || !graphLine.geometry || !graphLine.geometry.attributes.color) return;
+    const colors = graphLine.geometry.attributes.color.array;
+
+    for (const index of highlightedLinkIndices) {
+        const offset = index * 6;
+        for (let i = 0; i < 6; i += 3) {
+            colors[offset + i] = 0;
+            colors[offset + i + 1] = 1;
+            colors[offset + i + 2] = 0.4;
+        }
+    }
+
+    highlightedLinkIndices = [];
+    if (!highlightedObject) {
+        graphLine.geometry.attributes.color.needsUpdate = true;
+        return;
+    }
+
+    const selectedId = highlightedObject.userData.graphNodeId;
+    for (let i = 0; i < graphLinks.length; i++) {
+        const link = graphLinks[i];
+        const sourceId = link.source.id;
+        const targetId = link.target.id;
+        if (sourceId === selectedId || targetId === selectedId) {
+            highlightedLinkIndices.push(i);
+            const offset = i * 6;
+            for (let j = 0; j < 6; j += 3) {
+                colors[offset + j] = 1;
+                colors[offset + j + 1] = 1;
+                colors[offset + j + 2] = 1;
+            }
+        }
+    }
+
+    graphLine.geometry.attributes.color.needsUpdate = true;
 }
 
 function checkIntersections() {
@@ -1024,12 +1072,18 @@ function animate() {
     // Check for intersections for hover info
     checkIntersections();
     
+    // Update graph link highlighting after raycasting.
+    updateLinkHighlight();
+
     // Render scene
     renderer.render(scene, camera);
 }
 
 // Search functionality
 function initSearch() {
+    if (searchInitialized) return;
+    searchInitialized = true;
+
     const searchBar = document.getElementById('search-bar');
     const searchResults = document.getElementById('search-results');
     
