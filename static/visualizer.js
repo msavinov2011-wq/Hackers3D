@@ -530,7 +530,17 @@ function loadFilesystemData() {
         forceSimulation = null;
     }
 
-    objects.forEach(disposeObject);
+    // Preserve the FPS camera object, but dispose every previous visualization object
+    // exactly once. Reloads happen after rename/delete, so cleanup needs to be boringly reliable.
+    const preserved = controls.getObject();
+    const previousChildren = scene.children.slice();
+
+    for (const child of previousChildren) {
+        if (child === preserved) continue;
+        scene.remove(child);
+        disposeObject(child);
+    }
+
     objects = [];
     objectDetails = new Map();
     objectsById = new Map();
@@ -540,34 +550,27 @@ function loadFilesystemData() {
     graphLineGeometry = null;
     graphLinePositions = null;
     
-    // Remove previous graph objects while preserving the FPS camera.
-    const preserved = controls.getObject();
-    const removable = scene.children.filter(child => child !== preserved);
-    for (const child of removable) {
-        scene.remove(child);
-        if (child !== graphLine) disposeObject(child);
-    }
+    // Re-add the camera and fresh scene lighting.
+    scene.add(preserved);
     
-    // Add back the camera and lights
-    scene.add(controls.getObject());
-    
-    // Add ambient light
     const ambientLight = new THREE.AmbientLight(0x444444);
     scene.add(ambientLight);
 
-    // Add directional light
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
     directionalLight.position.set(1, 1, 1).normalize();
     scene.add(directionalLight);
     
-    // Fetch new filesystem data
     fetch('/api/fs')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Filesystem API returned HTTP ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             console.log('Filesystem data loaded:', data);
             filesystemData = data;
             createVisualization(filesystemData);
-            // Initialize search functionality after data is loaded
             initSearch();
         })
         .catch(error => console.error('Error loading filesystem data:', error));
