@@ -1038,6 +1038,7 @@ function checkIntersections() {
             }
             
             hoverInfo.innerHTML = info;
+            updateSelectionPanel(nextDetails);
             if (!document.pointerLockElement) {
                 document.body.style.cursor = 'pointer';
             }
