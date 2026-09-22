@@ -656,6 +656,9 @@ let graphNeighborsById = new Map();
 let graphLine = null;
 let graphLinePositions = null;
 let graphLineGeometry = null;
+let frameCounter = 0;
+let lastCullCameraPosition = new THREE.Vector3();
+let performanceNodeThreshold = 2500;
 
 function disposeObject(object) {
     if (!object) return;
@@ -1168,9 +1171,34 @@ function openInFileSystem(path) {
     });
 }
 
+function updateLargeGraphCulling() {
+    if (graphNodes.length < performanceNodeThreshold) return;
+
+    const cameraPosition = controls.getObject().position;
+    if (cameraPosition.distanceToSquared(lastCullCameraPosition) < 16) return;
+    lastCullCameraPosition.copy(cameraPosition);
+
+    const maxDistance = Math.max(260, Math.min(900, Math.cbrt(graphNodes.length) * 120));
+    const maxDistanceSq = maxDistance * maxDistance;
+
+    for (const node of graphNodes) {
+        if (!node.mesh) continue;
+        const dx = (node.x || 0) - cameraPosition.x;
+        const dy = (node.y || 0) - cameraPosition.y;
+        const dz = (node.z || 0) - cameraPosition.z;
+        const visible = dx * dx + dy * dy + dz * dz <= maxDistanceSq;
+        node.mesh.visible = visible;
+    }
+
+    if (graphLine) graphLine.visible = graphNodes.length <= 8000 || true;
+}
+
 function animate() {
     requestAnimationFrame(animate);
     
+    frameCounter++;
+    if ((frameCounter & 15) === 0) updateLargeGraphCulling();
+
     // Update movement - this is the FPS game-like motion
     const time = performance.now();
     const delta = Math.min(0.1, (time - prevTime) / 1000); // Cap delta to prevent jumps
