@@ -124,18 +124,33 @@ function init() {
     document.addEventListener('contextmenu', function(event) {
         event.preventDefault();
     });
+
+    window.addEventListener('blur', clearMovementState);
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) clearMovementState();
+    });
 }
 
 // Handle pointer lock change
+function clearMovementState() {
+    moveForward = false;
+    moveBackward = false;
+    moveLeft = false;
+    moveRight = false;
+    moveUp = false;
+    moveDown = false;
+    boost = false;
+    velocity.set(0, 0, 0);
+}
+
 function onPointerLockChange() {
     const infoPanel = document.getElementById('info');
     
     if (document.pointerLockElement === document.body) {
-        // Pointer is locked
         document.body.style.cursor = 'none';
         infoPanel.style.opacity = '0.3';
     } else {
-        // Pointer is unlocked
+        clearMovementState();
         document.body.style.cursor = 'default';
         infoPanel.style.opacity = '1';
     }
