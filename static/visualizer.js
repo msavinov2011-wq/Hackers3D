@@ -632,6 +632,7 @@ function loadFilesystemData() {
     objectsById = new Map();
     graphNodes = [];
     graphLinks = [];
+    graphNodesById = new Map();
     graphLine = null;
     graphLineGeometry = null;
     graphLinePositions = null;
@@ -665,6 +666,7 @@ function loadFilesystemData() {
 let forceSimulation = null;
 let graphNodes = [];
 let graphLinks = [];
+let graphNodesById = new Map();
 let graphChildrenById = new Map();
 let graphNeighborsById = new Map();
 let graphEdgeIndicesByNodeId = new Map();
@@ -904,11 +906,12 @@ function createVisualization(root) {
     const flattened = flattenFilesystemTree(root);
     graphNodes = flattened.nodes;
     graphLinks = flattened.links;
+    graphNodesById = new Map(graphNodes.map(node => [node.id, node]));
     graphChildrenById = flattened.childrenById;
     graphNeighborsById = flattened.neighborsById;
     graphEdgeIndicesByNodeId = flattened.edgeIndicesByNodeId;
 
-    const graphById = new Map(graphNodes.map(node => [node.id, node]));
+    const graphById = graphNodesById;
 
     // Build explicit parent references so directory clusters stay spatially coherent.
     for (const node of graphNodes) {
@@ -975,7 +978,9 @@ function createVisualization(root) {
     forceSimulation.on('tick', () => {
         forceTickCounter++;
         for (const node of graphNodes) {
-            node.mesh.position.set(node.x || 0, node.y || 0, node.z || 0);
+            node.mesh.position.x = node.x || 0;
+            node.mesh.position.y = node.y || 0;
+            node.mesh.position.z = node.z || 0;
         }
         if (forceTickCounter % graphLinkUpdateStride === 0) {
             updateGraphLinks();
@@ -1020,9 +1025,9 @@ function getSelectedRelatedNodes() {
     const childIds = graphChildrenById.get(node.id) || [];
     const neighborIds = graphNeighborsById.get(node.id) || new Set();
     return {
-        parent: node.parentId ? graphNodes.find(item => item.id === node.parentId) || null : null,
-        children: childIds.map(id => graphNodes.find(item => item.id === id)).filter(Boolean),
-        neighbors: Array.from(neighborIds).map(id => graphNodes.find(item => item.id === id)).filter(Boolean)
+        parent: node.parentId ? graphNodesById.get(node.parentId) || null : null,
+        children: childIds.map(id => graphNodesById.get(id)).filter(Boolean),
+        neighbors: Array.from(neighborIds).map(id => graphNodesById.get(id)).filter(Boolean)
     };
 }
 
@@ -1053,10 +1058,10 @@ function navigateToRelatedNode(direction) {
 
     let target = null;
     if (direction === 'parent' && currentNode.parentId) {
-        target = graphNodes.find(node => node.id === currentNode.parentId);
+        target = graphNodesById.get(currentNode.parentId) || null;
     } else if (direction === 'child') {
         const children = graphChildrenById.get(currentId) || [];
-        target = graphNodes.find(node => node.id === children[0]);
+        target = graphNodesById.get(children[0]) || null;
     }
     if (!target) return;
 
