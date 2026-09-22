@@ -1,111 +1,130 @@
 # HACKERS3D
 
-A cyberpunk-style 3D visualization and management tool for your filesystem.
-
-![HACKERS3D](https://raw.githubusercontent.com/audi70r/cyberspace-file-manager/master/screenshot.jpg)
+A cyberpunk-style 3D visualization and management tool for a real filesystem.
 
 ## Features
 
-- Immersive 3D visualization with cyberpunk aesthetic
-- Full file/directory management capabilities:
-  - Browse your filesystem in 3D space
-  - Rename files and folders
-  - Delete files and folders
-  - Open files and directories in your OS's default applications
-- Fly through your filesystem with intuitive FPS-style controls
-- Files and directories visualized as 3D structures with distinct colors by file type
-- Detailed information on hover
-- Size-based scaling for files
-- Customizable view distance and rendering options
-- Directory filtering for better performance
+- Real filesystem scanning with recursive directory discovery
+- 3D force-directed filesystem graph
+- FPS navigation with WASD / mouse
+- SPACE to fly up
+- SHIFT+SPACE to fly down
+- SHIFT for boost
+- Hover details for files and directories
+- Node selection and relationship highlighting
+- Parent/child navigation with **P / C**
+- Sibling navigation with **[ / ]**
+- Filesystem search with **Ctrl+F**
+- Rename and delete operations
+- Open files and directories through the host OS
+- Live filesystem updates through a recursive watcher and SSE
+- Cyberpunk HACKERS3D HUD
+- Large-graph performance safeguards, including adaptive physics, LOD geometry, link-update throttling, visibility culling and throttled raycasts
 
 ## Requirements
 
-- Go 1.16+
-- Modern web browser with WebGL support
+- Go 1.17+
+- Modern web browser with WebGL and EventSource support
 
 ## Installation
 
-1. Clone this repository:
+Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/cyberspace-file-manager.git
-cd cyberspace-file-manager
+git clone https://github.com/msavinov2011-wq/Hackers3D.git
+cd Hackers3D
 ```
 
-2. Build the application:
+Build:
 
 ```bash
-go build -o cfm main.go
+go build -o hackers3d .
 ```
 
 ## Usage
 
-Run the application with a path to visualize:
+Run Hackers3D with the directory you want to visualize:
 
 ```bash
-./cfm /path/to/directory
+./hackers3d /path/to/directory
+```
+
+On Windows:
+
+```powershell
+hackers3d.exe C:\Users\YourName\Documents
+```
+
+Then open:
+
+```text
+http://localhost:8080
 ```
 
 ### Command Line Options
 
-```
+```text
 -port int
     Port to serve on (default 8080)
+
 -hidden
     Show hidden files and directories
+
 -ignore string
-    Comma-separated list of directories to ignore (e.g., "node_modules,dist,build")
+    Comma-separated list of directories to ignore
+    Example: "node_modules,dist,build"
 ```
 
-Example with all options:
+Example:
 
 ```bash
-./cfm -port 8888 -hidden -ignore "node_modules,target,dist,build" /path/to/directory
+./hackers3d -port 8888 -hidden -ignore "node_modules,target,dist,build" /path/to/directory
 ```
-
-Then open your browser and navigate to `http://localhost:8080` (or the port you specified).
 
 ## Controls
 
-- **WASD/Arrow Keys** - Move horizontally
-- **SPACE** - Move up
-- **SHIFT+SPACE** - Move down
-- **SHIFT** - Increase movement speed (boost)
-- **Mouse** - Look around (click to lock/unlock mouse)
-- **R** - Rename selected file/folder
-- **DELETE/BACKSPACE** - Delete selected file/folder
-- **Click** on objects to open them in the default application
-- **ESC** - Unlock mouse cursor
-- **Hover** over objects to see file/folder details
-- **Search bar** - Find files and folders by name
-  - Press **Ctrl+F** to focus the search bar
-  - Click a search result to fly to that object
-  - Keyboard controls are disabled while searching
-  - Focus returns to 3D view after selecting a result
-
-## File Type Color Coding
-
-The visualization uses different colors for file types to make them easily distinguishable:
-
-- **JavaScript/TypeScript**: Yellow/Blue
-- **HTML/CSS**: Orange/Blue
-- **Images**: Magenta/Green
-- **Documents**: Blue/White
-- **Audio/Video**: Yellow/Red
-- **Archives**: Pink
-- **Executable**: Red
-- And many more...
+- **WASD / Arrow Keys**: move
+- **Mouse**: look around
+- **SPACE**: move up
+- **SHIFT+SPACE**: move down
+- **SHIFT**: boost
+- **P**: navigate to parent
+- **C**: navigate to first child
+- **[ / ]**: navigate between siblings
+- **R**: rename selected file/folder
+- **DELETE / BACKSPACE**: delete selected file/folder
+- **CLICK**: interact with a node
+- **ESC**: unlock mouse
+- **Ctrl+F**: focus filesystem search
+- **Hover**: inspect file/folder details
 
 ## How It Works
 
-The application builds a spatial representation of your filesystem:
+```text
+REAL FILESYSTEM
+      ↓
+FILESYSTEM SCANNER
+      ↓
+HACKERS FILEGRAPH
+      ↓
+3D FORCE-DIRECTED GRAPH
+      ↓
+THREE.JS / WEBGL
+      ↓
+CYBERPUNK 3D WORLD
+      ↓
+FPS CAMERA
+      ↓
+INTERACTIVE FILESYSTEM
+```
 
-1. Backend server scans the directory structure and serves it as JSON
-2. Front-end builds a 3D visualization using Three.js
-3. Files are rendered as 3D objects with height based on file size
-4. Directories are shown as semi-transparent containers
-5. The visualization uses a grid-based layout algorithm for optimal spatial arrangement
+Each filesystem entry becomes a graph node. Parent-child relationships become graph edges. The force simulation clusters related filesystem entries while keeping unrelated nodes separated.
+
+The frontend receives the initial filesystem snapshot from `/api/fs`. A recursive `fsnotify` watcher sends debounced filesystem events through `/api/events`, and the browser reloads the graph when the filesystem changes.
+
+## Current Status
+
+The implementation is complete through the project stages, but runtime validation on a real local machine is still required before calling the build production-ready. In particular, the Go build, browser/WebGL execution, filesystem mutations and large-graph performance need to be exercised on the target computer.
 
 ## License
 
