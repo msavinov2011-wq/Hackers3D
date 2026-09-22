@@ -1605,6 +1605,31 @@ function flyToObject(path) {
     document.getElementById('search-results').style.display = 'none';
 }
 
+function initFilesystemWatcher() {
+    if (!window.EventSource) {
+        console.warn('HACKERS3D: EventSource is not supported; live filesystem updates disabled.');
+        return;
+    }
+
+    const source = new EventSource('/api/events');
+
+    source.addEventListener('filesystem', () => {
+        // Reload the authoritative filesystem snapshot after the debounced server event.
+        loadFilesystemData().catch(error => {
+            console.error('HACKERS3D filesystem refresh failed:', error);
+        });
+    });
+
+    source.addEventListener('error', () => {
+        // EventSource automatically reconnects. Keep the HUD quiet instead of
+        // generating an alert every time the browser briefly loses the connection.
+        console.warn('HACKERS3D filesystem event stream disconnected; reconnecting...');
+    });
+
+    window.addEventListener('beforeunload', () => source.close(), { once: true });
+}
+
 // Initialize and animate
 init();
+initFilesystemWatcher();
 animate();
