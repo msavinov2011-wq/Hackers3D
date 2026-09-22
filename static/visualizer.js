@@ -773,6 +773,7 @@ let lastCullCameraPosition = new THREE.Vector3();
 let performanceNodeThreshold = 2500;
 let graphLinkUpdateStride = 1;
 let forceTickCounter = 0;
+let maxVisualWeight = 1;
 
 const sharedNodeMaterials = {
     directory: new THREE.MeshStandardMaterial({
@@ -868,11 +869,19 @@ function flattenFilesystemTree(root) {
 }
 
 function createGraphNode(node) {
-    // Nodes are deliberately small: the network lines should define the shape,
-    // while nodes act as connection points rather than oversized blocks.
-    const radius = node.isDir
-        ? Math.min(3.2, 1.45 + Math.log2(node.childrenCount + 1) * 0.28)
-        : Math.min(1.8, 0.72 + Math.log2(node.size + 1) * 0.028);
+    // Node volume follows filesystem weight. Radius therefore scales with the
+    // cube root of bytes, which makes sphere volume approximately proportional
+    // to the represented data instead of making huge files visually enormous.
+    const normalizedWeight = Math.cbrt(
+        Math.max(1, node.visualWeight || node.size || 1) / Math.max(1, maxVisualWeight)
+    );
+
+    const baseRadius = node.isDir ? 1.65 : 0.72;
+    const weightRadius = node.isDir ? 4.9 * normalizedWeight : 3.8 * normalizedWeight;
+    const radius = Math.min(
+        node.isDir ? 5.8 : 4.2,
+        baseRadius + weightRadius
+    );
 
     const graphSize = graphNodes.length || 0;
     const geometry = node.isDir
@@ -1091,6 +1100,40 @@ function createVisualization(root) {
     for (const node of graphNodes) {
         node.parentNode = node.parentId ? graphById.get(node.parentId) : null;
     }
+
+    // Calculate a real weight for every node. Files use their own byte size;
+    // directories use the total size of their descendant files, so a large
+    // folder is visually larger for the same reason a large file is.
+    const childrenByNodeId = new Map();
+    for (const node of graphNodes) childrenByNodeId.set(node.id, []);
+    for (const node of graphNodes) {
+        if (node.parentId && childrenByNodeId.has(node.parentId)) {
+            childrenByNodeId.get(node.parentId).push(node);
+        }
+    }
+
+    const calculateNodeWeight = (node) => {
+        if (!node.isDir) {
+            node.visualWeight = Math.max(1, node.size);
+            return node.visualWeight;
+        }
+
+        let total = 0;
+        for (const child of childrenByNodeId.get(node.id) || []) {
+            total += calculateNodeWeight(child);
+        }
+        node.visualWeight = Math.max(1, total);
+        return node.visualWeight;
+    };
+
+    for (const node of graphNodes) {
+        if (!node.parentId) calculateNodeWeight(node);
+    }
+
+    const maxVisualWeight = Math.max(
+        1,
+        ...graphNodes.map(node => node.visualWeight || 1)
+    );
 
     // Organic 3D network seed: distribute every node through a volume.
     // Filesystem hierarchy remains encoded by real links, but the geometry itself
