@@ -886,18 +886,35 @@ function checkIntersections() {
     const crosshair = document.getElementById('crosshair');
     crosshair.classList.remove('active');
     
-    // Reset previously highlighted object if it exists
-    if (highlightedObject && highlightedMaterial) {
-        highlightedObject.material = highlightedMaterial;
+    const nextObject = intersects.length > 0 ? intersects[0].object : null;
+    const nextDetails = nextObject ? objectDetails.get(nextObject.id) : null;
+
+    // Only rebuild materials when the hovered node actually changes.
+    // Replacing/cloning a material every animation frame creates needless GC pressure.
+    if (nextObject !== highlightedObject) {
+        if (highlightedObject && highlightedMaterial) {
+            highlightedObject.material = highlightedMaterial;
+        }
+
         highlightedObject = null;
         highlightedMaterial = null;
+
+        if (nextObject && nextDetails) {
+            highlightedObject = nextObject;
+            highlightedMaterial = nextObject.material;
+
+            const highlightMaterial = nextObject.material.clone();
+            if (highlightMaterial.color) {
+                highlightMaterial.emissive = new THREE.Color(0xffff00);
+                highlightMaterial.emissiveIntensity = 0.3;
+            }
+            nextObject.material = highlightMaterial;
+        }
     }
-    
-    if (intersects.length > 0) {
-        const object = intersects[0].object;
-        const details = objectDetails.get(object.id);
-        
-        if (details) {
+
+    if (nextObject && nextDetails) {
+        const object = nextObject;
+        const details = nextDetails;
             // Get file extension and type info for Files
             let fileType = '';
             if (details.type === 'File') {
@@ -929,21 +946,6 @@ function checkIntersections() {
             if (!document.pointerLockElement) {
                 document.body.style.cursor = 'pointer';
             }
-            
-            // Highlight the object
-            highlightedObject = object;
-            highlightedMaterial = object.material.clone();
-            
-            // Create a new highlighted material that's brighter
-            const highlightMaterial = object.material.clone();
-            if (highlightMaterial.color) {
-                // Make the color brighter for highlighting
-                highlightMaterial.emissive = new THREE.Color(0xffff00);
-                highlightMaterial.emissiveIntensity = 0.3;
-            }
-            
-            // Apply highlight material
-            object.material = highlightMaterial;
             
             // Update crosshair
             crosshair.classList.add('active');
