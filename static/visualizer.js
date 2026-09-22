@@ -523,14 +523,27 @@ function onWindowResize() {
 }
 
 function loadFilesystemData() {
-    // Clear current objects and scene
+    if (forceSimulation) {
+        forceSimulation.stop();
+        forceSimulation = null;
+    }
+
+    objects.forEach(disposeObject);
     objects = [];
     objectDetails = new Map();
     objectsById = new Map();
+    graphNodes = [];
+    graphLinks = [];
+    graphLine = null;
+    graphLineGeometry = null;
+    graphLinePositions = null;
     
-    // Remove all objects from the scene except camera and controls
-    while(scene.children.length > 0){ 
-        scene.remove(scene.children[0]); 
+    // Remove previous graph objects while preserving the FPS camera.
+    const preserved = controls.getObject();
+    const removable = scene.children.filter(child => child !== preserved);
+    for (const child of removable) {
+        scene.remove(child);
+        if (child !== graphLine) disposeObject(child);
     }
     
     // Add back the camera and lights
@@ -558,652 +571,196 @@ function loadFilesystemData() {
         .catch(error => console.error('Error loading filesystem data:', error));
 }
 
-function createVisualization(node) {
-    // Create the root node and add it to the scene
-    // No need for parent size since we now use the grid-based approach
-    const rootNode = createNode(node, 0, 0, 0);
-    scene.add(rootNode);
+let forceSimulation = null;
+let graphNodes = [];
+let graphLinks = [];
+let graphLine = null;
+let graphLinePositions = null;
+let graphLineGeometry = null;
+
+function disposeObject(object) {
+    if (!object) return;
+    if (object.geometry) object.geometry.dispose();
+    if (object.material) {
+        if (Array.isArray(object.material)) object.material.forEach(m => m.dispose());
+        else object.material.dispose();
+    }
 }
 
-// Constants for grid-based layout
-const CELL_SIZE = 1.0; // Base cell size unit
-const FILE_CELLS = 3; // Number of cells in one dimension of a file (3x3x3 = 27 cells)
-const PADDING_CELLS = 1; // Padding cells around each element
-const GRID_DEBUG = false; // Enable grid visualization for debugging
+function flattenFilesystemTree(root) {
+    const nodes = [];
+    const links = [];
+    const byPath = new Map();
 
-// Helper function to calculate the grid cells required for an element
-function calculateGridCells(node) {
-    if (!node.isDir) {
-        // Files are always 3x3x3 (with 1 cell padding all around)
-        return {
-            width: FILE_CELLS + (PADDING_CELLS * 2),
-            height: FILE_CELLS + (PADDING_CELLS * 2),
-            depth: FILE_CELLS + (PADDING_CELLS * 2),
-            totalCells: Math.pow(FILE_CELLS + (PADDING_CELLS * 2), 3)
-        };
-    }
-    
-    // For directories, calculate based on children
-    const childrenCount = node.children ? node.children.length : 0;
-    
-    if (childrenCount === 0) {
-        // Empty directories are treated like files
-        return {
-            width: FILE_CELLS + (PADDING_CELLS * 2),
-            height: FILE_CELLS + (PADDING_CELLS * 2),
-            depth: FILE_CELLS + (PADDING_CELLS * 2),
-            totalCells: Math.pow(FILE_CELLS, 3)
-        };
-    }
-    
-    // Calculate total cells required by all children
-    let totalChildCells = 0;
-    const childrenMetrics = [];
-    
-    for (const child of node.children) {
-        const childMetrics = calculateGridCells(child);
-        childrenMetrics.push(childMetrics);
-    }
-    
-    // Get the maximum dimension across all children
-    // This ensures each child gets allocated enough space
-    const maxChildDimension = childrenMetrics.reduce((max, metrics) => 
-        Math.max(max, metrics.width, metrics.height, metrics.depth), 0);
-    
-    // Calculate how many children we can fit in each dimension
-    // based on the maximum child size to ensure no overlaps
-    const gridDimension = Math.ceil(Math.cbrt(childrenCount));
-    
-    // Each child needs its allocated space based on the largest child
-    // Use a smaller gap between items to keep them closer together
-    const gridSpacing = maxChildDimension + 1; // 1 cell gap between items
-    
-    // Calculate container size needed for all children
-    // We need to ensure the container properly wraps all children
-    // Total container size = grid dimension × spacing between cells
-    const containerSize = (gridDimension * gridSpacing) + (PADDING_CELLS * 2);
-    
-    return {
-        width: containerSize,
-        height: containerSize,
-        depth: containerSize,
-        totalCells: Math.pow(containerSize, 3),
-        childrenMetrics: childrenMetrics,
-        gridDimension: gridDimension,
-        cellsPerGrid: gridSpacing,
-        maxChildDimension: maxChildDimension
-    };
-}
+    function walk(node, parentPath) {
+        if (!node || !node.path) return;
 
-function createNode(node, x, y, z, parentMetrics) {
-    // Calculate the grid metrics for this node
-    const nodeMetrics = calculateGridCells(node);
-    
-    // Calculate physical size based on cell dimensions
-    const nodeWidth = nodeMetrics.width * CELL_SIZE;
-    const nodeHeight = nodeMetrics.height * CELL_SIZE;
-    const nodeDepth = nodeMetrics.depth * CELL_SIZE;
-    
-    // Create a group to hold this node and its children
-    const nodeGroup = new THREE.Group();
-    nodeGroup.position.set(x, y, z);
-    
-    if (node.isDir) {
-        // Directory - semi-transparent cube with color based on name
-        // For directories, use the exact calculated size without additional padding reduction
-        // This ensures the container properly wraps all its children
-        const contentWidth = nodeWidth;
-        const contentHeight = nodeHeight;
-        const contentDepth = nodeDepth;
-        
-        const dirGeometry = new THREE.BoxGeometry(contentWidth, contentHeight, contentDepth);
-        
-        // Generate a color based on the folder name (for visual distinction)
-        let hash = 0;
-        for (let i = 0; i < node.name.length; i++) {
-            hash = node.name.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        
-        // Convert hash to RGB color in blue/teal/purple range
-        const baseR = 30 + ((hash & 0xFF) % 100); // 30-130 range
-        const baseG = 100 + ((hash >> 8 & 0xFF) % 155); // 100-255 range
-        const baseB = 150 + ((hash >> 16 & 0xFF) % 105); // 150-255 range
-        
-        const dirColor = (baseR << 16) | (baseG << 8) | baseB;
-        
-        const dirMaterial = new THREE.MeshLambertMaterial({
-            color: dirColor,
-            opacity: 0.25,
-            transparent: true,
-            wireframe: false,
-            side: THREE.DoubleSide
-        });
-        
-        const dirMesh = new THREE.Mesh(dirGeometry, dirMaterial);
-        nodeGroup.add(dirMesh);
-        
-        // Add wireframe overlay for better visibility
-        const wireGeometry = new THREE.BoxGeometry(contentWidth, contentHeight, contentDepth);
-        
-        // Create brighter version of the color for wireframe
-        const wireR = Math.min(255, ((dirColor >> 16) & 0xFF) + 100);
-        const wireG = Math.min(255, ((dirColor >> 8) & 0xFF) + 80);
-        const wireB = Math.min(255, (dirColor & 0xFF) + 50);
-        const brightColor = (wireR << 16) | (wireG << 8) | wireB;
-        
-        const wireMaterial = new THREE.MeshBasicMaterial({
-            color: brightColor,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.6
-        });
-        const wireframe = new THREE.Mesh(wireGeometry, wireMaterial);
-        nodeGroup.add(wireframe);
-        
-        // Add grid visualization for debugging
-        const gridHelper = new THREE.GridHelper(nodeWidth, nodeMetrics.width);
-        gridHelper.position.y = -contentHeight/2; // Position at bottom of container
-        gridHelper.material.opacity = 0.2;
-        gridHelper.material.transparent = true;
-        nodeGroup.add(gridHelper);
-        
-        // Add label for directory
-        addLabel(node.name, nodeGroup, contentWidth);
-        
-        // Add to objects array for raycasting
-        objects.push(dirMesh);
-        objectDetails.set(dirMesh.id, {
-            name: node.name,
+        const id = node.path;
+        const graphNode = {
+            id,
+            name: node.name || id.split('/').pop() || id,
             path: node.path,
-            type: 'Directory',
-            children: node.children ? node.children.length : 0,
-            modified: new Date(node.modified).toLocaleString()
-        });
-        
-        // Store object reference by path for search functionality
-        objectsById.set(node.path, {
-            object: dirMesh,
-            position: dirMesh.position.clone(),
-            parentGroup: nodeGroup,
-            type: 'Directory'
-        });
-        
-        // Position children inside this container
-        const childrenCount = node.children ? node.children.length : 0;
-        
-        if (childrenCount > 0) {
-            // Use the pre-calculated grid dimension from metrics
-            const gridDimension = nodeMetrics.gridDimension;
-            
-            // Use the full container size for content positioning
-            // This makes sure the visual container matches the actual space used
-            const contentSize = nodeWidth;
-            
-            // Use the pre-calculated grid spacing from metrics
-            const gridSpacing = nodeMetrics.cellsPerGrid * CELL_SIZE;
-            
-            // Create a visual grid for debugging
-            const gridLines = new THREE.Group();
-            
-            // Create horizontal and vertical grid lines
-            for (let i = 0; i <= gridDimension; i++) {
-                const pos = -contentSize/2 + (i * (contentSize / gridDimension));
-                
-                // X grid lines
-                const xLineGeometry = new THREE.BufferGeometry();
-                const xLineVertices = new Float32Array([
-                    pos, -contentHeight/2, -contentSize/2,
-                    pos, -contentHeight/2, contentSize/2
-                ]);
-                xLineGeometry.setAttribute('position', new THREE.BufferAttribute(xLineVertices, 3));
-                const xLine = new THREE.Line(
-                    xLineGeometry,
-                    new THREE.LineBasicMaterial({ color: 0xff00ff, opacity: 0.5, transparent: true })
-                );
-                gridLines.add(xLine);
-                
-                // Z grid lines
-                const zLineGeometry = new THREE.BufferGeometry();
-                const zLineVertices = new Float32Array([
-                    -contentSize/2, -contentHeight/2, pos,
-                    contentSize/2, -contentHeight/2, pos
-                ]);
-                zLineGeometry.setAttribute('position', new THREE.BufferAttribute(zLineVertices, 3));
-                const zLine = new THREE.Line(
-                    zLineGeometry,
-                    new THREE.LineBasicMaterial({ color: 0xff00ff, opacity: 0.5, transparent: true })
-                );
-                gridLines.add(zLine);
-            }
-            
-            nodeGroup.add(gridLines);
-            
-            // Calculate grid cell allocation
-            const cellSize = nodeMetrics.maxChildDimension * CELL_SIZE;
-            
-            // Calculate total grid size with tighter spacing
-            const totalGridSize = gridDimension * (cellSize + CELL_SIZE); // Add only 1 cell spacing
-            
-            // Starting position for the first child - make sure it fits exactly within container
-            const startX = -contentSize/2 + (cellSize/2) + CELL_SIZE; // Offset by half cell size + padding
-            const startY = startX;
-            const startZ = startX;
-            
-            // Position children in 3D grid with proper spacing
-            let index = 0;
-            for (let i = 0; i < gridDimension && index < childrenCount; i++) {
-                for (let j = 0; j < gridDimension && index < childrenCount; j++) {
-                    for (let k = 0; k < gridDimension && index < childrenCount; k++) {
-                        const child = node.children[index];
-                        const childMetrics = nodeMetrics.childrenMetrics[index];
-                        
-                        // Position each child with tighter spacing
-                        const spacing = cellSize + CELL_SIZE; // Cell size plus only 1-cell gap
-                        const childX = startX + (i * spacing);
-                        const childY = startY + (j * spacing);
-                        const childZ = startZ + (k * spacing);
-                        
-                        // Add a marker sphere at grid point for debugging
-                        const marker = new THREE.Mesh(
-                            new THREE.SphereGeometry(CELL_SIZE * 0.2),
-                            new THREE.MeshBasicMaterial({ color: 0x00ffff })
-                        );
-                        marker.position.set(childX, childY, childZ);
-                        nodeGroup.add(marker);
-                        
-                        // Draw cell boundary box for debugging
-                        const boundaryBox = new THREE.LineSegments(
-                            new THREE.EdgesGeometry(new THREE.BoxGeometry(
-                                childMetrics.width * CELL_SIZE,
-                                childMetrics.height * CELL_SIZE,
-                                childMetrics.depth * CELL_SIZE
-                            )),
-                            new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.3, transparent: true })
-                        );
-                        boundaryBox.position.set(childX, childY, childZ);
-                        nodeGroup.add(boundaryBox);
-                        
-                        // Create child node and add to this node's group with precisely calculated position
-                        const childNode = createNode(child, childX, childY, childZ, childMetrics);
-                        nodeGroup.add(childNode);
-                        
-                        index++;
-                    }
-                }
+            isDir: !!node.isDir,
+            size: Number(node.size) || 0,
+            modified: node.modified || '',
+            childrenCount: Array.isArray(node.children) ? node.children.length : 0
+        };
+
+        nodes.push(graphNode);
+        byPath.set(id, graphNode);
+
+        if (parentPath) {
+            links.push({ source: parentPath, target: id });
+        }
+
+        if (Array.isArray(node.children)) {
+            for (const child of node.children) {
+                walk(child, id);
             }
         }
-    } else {
-        // File - a solid cube in the middle with padding all around
-        const contentWidth = FILE_CELLS * CELL_SIZE;
-        const contentHeight = FILE_CELLS * CELL_SIZE;
-        const contentDepth = FILE_CELLS * CELL_SIZE;
-        
-        // Different colors based on extension
-        const extension = node.name.split('.').pop().toLowerCase();
-        let color;
-        
-        switch (extension) {
-            // Code files
-            case 'js': case 'mjs':
-                color = 0xf7df1e; // JavaScript yellow
-                break;
-            case 'ts': 
-                color = 0x3178c6; // TypeScript blue
-                break;
-            case 'jsx': case 'tsx':
-                color = 0x61dafb; // React blue
-                break;
-            case 'html': case 'htm': 
-                color = 0xe34c26; // HTML orange
-                break;
-            case 'css': 
-                color = 0x264de4; // CSS blue
-                break;
-            case 'scss': case 'sass':
-                color = 0xcd6799; // SASS/SCSS pink
-                break;
-            case 'less':
-                color = 0x1d365d; // Less dark blue
-                break;
-            case 'php':
-                color = 0x777bb4; // PHP purple
-                break;
-            case 'py': case 'pyc': case 'pyd': case 'pyo':
-                color = 0x3776ab; // Python blue
-                break;
-            case 'rb': case 'erb':
-                color = 0xcc342d; // Ruby red
-                break;
-            case 'java': case 'class': case 'jar':
-                color = 0xf89820; // Java orange
-                break;
-            case 'c': case 'h':
-                color = 0x555555; // C gray
-                break;
-            case 'cpp': case 'cc': case 'cxx': case 'hpp':
-                color = 0x00599c; // C++ blue
-                break;
-            case 'cs':
-                color = 0x178600; // C# green
-                break;
-            case 'go':
-                color = 0x00add8; // Go blue
-                break;
-            case 'rs':
-                color = 0xdea584; // Rust orange
-                break;
-            case 'swift':
-                color = 0xffac45; // Swift orange
-                break;
-            case 'kt': case 'kts':
-                color = 0xa97bff; // Kotlin purple
-                break;
-            case 'dart':
-                color = 0x0175c2; // Dart blue
-                break;
-            case 'r':
-                color = 0x276dc3; // R blue
-                break;
-            case 'scala':
-                color = 0xdc322f; // Scala red
-                break;
-            case 'lua':
-                color = 0x000080; // Lua navy blue
-                break;
-            case 'pl': case 'pm':
-                color = 0x0073a1; // Perl blue
-                break;
-            case 'sh': case 'bash': case 'zsh':
-                color = 0x4eaa25; // Shell green
-                break;
-                
-            // Config/Data files
-            case 'json': 
-                color = 0x000000; // JSON black
-                break;
-            case 'xml': case 'svg':
-                color = 0xff6347; // XML/SVG tomato
-                break;
-            case 'yml': case 'yaml':
-                color = 0x8bc34a; // YAML green
-                break;
-            case 'toml': case 'ini': case 'conf':
-                color = 0x6d8086; // Config files gray-blue
-                break;
-            case 'sql': case 'db': case 'sqlite':
-                color = 0x336791; // SQL/Database blue
-                break;
-            case 'csv': case 'tsv': case 'xls': case 'xlsx':
-                color = 0x217346; // Spreadsheet green
-                break;
-                
-            // Documentation files
-            case 'md':
-                color = 0x083fa1; // Markdown blue
-                break;
-            case 'txt': 
-                color = 0xffffff; // Text white
-                break;
-            case 'rtf': case 'doc': case 'docx': case 'odt':
-                color = 0x2b579a; // Document files blue
-                break;
-            case 'pdf':
-                color = 0xf40f02; // PDF red
-                break;
-                
-            // Media files
-            case 'jpg': case 'jpeg': case 'png':
-                color = 0xff00ff; // Image magenta
-                break;
-            case 'gif':
-                color = 0x00ff00; // GIF green
-                break;
-            case 'webp': case 'bmp': case 'tiff': case 'tif':
-                color = 0xff66b3; // Other images pink
-                break;
-            case 'ico': case 'icns':
-                color = 0xb5b5b5; // Icon files gray
-                break;
-            case 'mp3': case 'wav': case 'ogg': case 'flac': case 'm4a': case 'aac':
-                color = 0xffcc00; // Audio yellow
-                break;
-            case 'mp4': case 'webm': case 'avi': case 'mov': case 'mkv': case 'flv':
-                color = 0xff0000; // Video red
-                break;
-                
-            // Archive files
-            case 'zip': case 'tar': case 'gz': case 'bz2': case '7z': case 'rar':
-                color = 0x880e4f; // Archive dark pink
-                break;
-                
-            // Executable files
-            case 'exe': case 'dll': case 'so': case 'dylib': case 'app':
-                color = 0xb71c1c; // Executable dark red
-                break;
-                
-            // Font files
-            case 'ttf': case 'otf': case 'woff': case 'woff2': case 'eot':
-                color = 0x9c27b0; // Font files purple
-                break;
-                
-            // Binary/other
-            case 'bin': case 'dat':
-                color = 0x212121; // Binary dark gray
-                break;
-                
-            default:
-                // Check if it's a hidden file (no extension but starts with dot)
-                if (node.name.startsWith('.')) {
-                    color = 0x607d8b; // Hidden files blue-gray
-                } else {
-                    color = 0xcccccc; // Default gray
-                }
-        }
-        
-        // Scale the file size using a logarithmic scale
-        const maxFileSize = 1024 * 1024 * 10; // 10MB reference size
-        const fileScaleFactor = Math.max(0.5, Math.min(1.0, (Math.log10(node.size + 1) / Math.log10(maxFileSize))));
-        
-        // Create the file cube (actual content)
-        const fileGeometry = new THREE.BoxGeometry(contentWidth, contentHeight * fileScaleFactor, contentDepth);
-        const fileMaterial = new THREE.MeshLambertMaterial({ color: color });
-        
-        // Position content cube in the center of the allocated space
-        const fileMesh = new THREE.Mesh(fileGeometry, fileMaterial);
-        fileMesh.position.y = ((fileScaleFactor - 1) * contentHeight) / 2; // Adjust y position for height scaling
-        nodeGroup.add(fileMesh);
-        
-        // Add wireframe to show exact dimensions
-        const wireGeometry = new THREE.BoxGeometry(contentWidth, contentHeight * fileScaleFactor, contentDepth);
-        const wireMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.3
-        });
-        const wireframe = new THREE.Mesh(wireGeometry, wireMaterial);
-        wireframe.position.y = ((fileScaleFactor - 1) * contentHeight) / 2;
-        nodeGroup.add(wireframe);
-        
-        // Add grid visualization for debugging
-        const gridHelper = new THREE.GridHelper(nodeWidth, nodeMetrics.width);
-        gridHelper.position.y = -contentHeight/2; // Position at bottom of allocated space
-        gridHelper.material.opacity = 0.2;
-        gridHelper.material.transparent = true;
-        nodeGroup.add(gridHelper);
-        
-        // Add label for file
-        addLabel(node.name, nodeGroup, contentWidth);
-        
-        // Add to objects array for raycasting
-        objects.push(fileMesh);
-        objectDetails.set(fileMesh.id, {
-            name: node.name,
-            path: node.path,
-            type: 'File',
-            size: formatFileSize(node.size),
-            modified: new Date(node.modified).toLocaleString()
-        });
-        
-        // Store object reference by path for search functionality
-        objectsById.set(node.path, {
-            object: fileMesh,
-            position: new THREE.Vector3(
-                nodeGroup.position.x + fileMesh.position.x,
-                nodeGroup.position.y + fileMesh.position.y,
-                nodeGroup.position.z + fileMesh.position.z
-            ),
-            parentGroup: nodeGroup,
-            type: 'File'
-        });
     }
-    
-    return nodeGroup;
+
+    walk(root, null);
+    return { nodes, links, byPath };
 }
 
-function addLabel(text, parentGroup, nodeSize) {
-    if (!font) return; // Skip if font isn't loaded
-    
-    // Display full text without truncation
-    const displayText = text;
-    
-    // Create text geometry - scale based on node size, but keep smaller
-    const textSize = Math.max(nodeSize * 0.05, 0.5);
-    const textGeometry = new THREE.TextGeometry(displayText, {
-        font: font,
-        size: textSize,
-        height: textSize * 0.1,
-        curveSegments: 2,
-        bevelEnabled: false
+function createGraphNode(node) {
+    const radius = node.isDir
+        ? Math.min(7, 2.8 + Math.log2(node.childrenCount + 1) * 0.9)
+        : Math.min(4.5, 1.6 + Math.log2(node.size + 1) * 0.12);
+
+    const geometry = node.isDir
+        ? new THREE.SphereGeometry(radius, 16, 12)
+        : new THREE.SphereGeometry(radius, 12, 8);
+
+    const material = node.isDir
+        ? new THREE.MeshStandardMaterial({
+            color: 0x00ff66,
+            emissive: 0x003d1a,
+            emissiveIntensity: 1.2,
+            transparent: true,
+            opacity: 0.72,
+            roughness: 0.35,
+            metalness: 0.15
+        })
+        : new THREE.MeshStandardMaterial({
+            color: 0x00ffaa,
+            emissive: 0x002b1c,
+            emissiveIntensity: 0.9,
+            roughness: 0.4,
+            metalness: 0.2
+        });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData.graphNodeId = node.id;
+    mesh.userData.path = node.path;
+
+    objects.push(mesh);
+    objectDetails.set(mesh.id, {
+        name: node.name,
+        path: node.path,
+        type: node.isDir ? 'Directory' : 'File',
+        size: formatFileSize(node.size),
+        modified: node.modified,
+        children: node.childrenCount
     });
-    
-    // Compute text dimensions
-    textGeometry.computeBoundingBox();
-    const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
-    const textHeight = textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y;
-    
-    // Create background plane for better readability
-    const padding = textSize * 0.3;
-    const labelBackgroundGeometry = new THREE.PlaneGeometry(
-        textWidth + padding * 2, 
-        textHeight + padding * 2
+    objectsById.set(node.path, {
+        object: mesh,
+        type: node.isDir ? 'Directory' : 'File'
+    });
+
+    return mesh;
+}
+
+function createGraphLinks() {
+    if (!graphLinks.length) return;
+
+    graphLinePositions = new Float32Array(graphLinks.length * 6);
+    graphLineGeometry = new THREE.BufferGeometry();
+    graphLineGeometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(graphLinePositions, 3)
     );
-    const labelBackgroundMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0x000000,
+
+    const material = new THREE.LineBasicMaterial({
+        color: 0x00ff66,
         transparent: true,
-        opacity: 0.7,
-        side: THREE.DoubleSide
+        opacity: 0.38
     });
-    
-    // Create text material
-    const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    
-    // Create meshes
-    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-    const backgroundMesh = new THREE.Mesh(labelBackgroundGeometry, labelBackgroundMaterial);
-    
-    // Create a group for label (text + background)
-    const labelGroup = new THREE.Group();
-    
-    // Center text at origin for correct positioning
-    textGeometry.translate(-textWidth / 2, -textHeight / 2, 0);
-    
-    // Add both to label group with background slightly behind
-    backgroundMesh.position.z = -0.01;
-    labelGroup.add(backgroundMesh);
-    labelGroup.add(textMesh);
-    
-    // Create only one label for the front face (that the camera is facing when we start)
-    // Position slightly in front of the cube face
-    labelGroup.position.set(0, 0, nodeSize / 2 + 0.01);
-    
-    // Only keep this single label
-    const labels = [labelGroup];
-    
-    // Add all labels to parent group
-    labels.forEach(label => parentGroup.add(label));
+
+    graphLine = new THREE.LineSegments(graphLineGeometry, material);
+    graphLine.frustumCulled = false;
+    scene.add(graphLine);
 }
 
-function formatFileSize(sizeInBytes) {
-    if (sizeInBytes < 1024) {
-        return sizeInBytes + ' B';
-    } else if (sizeInBytes < 1024 * 1024) {
-        return (sizeInBytes / 1024).toFixed(2) + ' KB';
-    } else if (sizeInBytes < 1024 * 1024 * 1024) {
-        return (sizeInBytes / (1024 * 1024)).toFixed(2) + ' MB';
-    } else {
-        return (sizeInBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+function updateGraphLinks() {
+    if (!graphLine || !graphLinePositions) return;
+
+    for (let i = 0; i < graphLinks.length; i++) {
+        const link = graphLinks[i];
+        const source = link.source;
+        const target = link.target;
+        const sMesh = source.mesh;
+        const tMesh = target.mesh;
+        const offset = i * 6;
+
+        graphLinePositions[offset] = sMesh.position.x;
+        graphLinePositions[offset + 1] = sMesh.position.y;
+        graphLinePositions[offset + 2] = sMesh.position.z;
+        graphLinePositions[offset + 3] = tMesh.position.x;
+        graphLinePositions[offset + 4] = tMesh.position.y;
+        graphLinePositions[offset + 5] = tMesh.position.z;
     }
+
+    graphLineGeometry.attributes.position.needsUpdate = true;
 }
 
-// Function to get a human-readable file type based on extension
-function getFileType(extension) {
-    const fileTypes = {
-        // Code files
-        'js': 'JavaScript', 'mjs': 'JavaScript Module',
-        'ts': 'TypeScript',
-        'jsx': 'React JSX', 'tsx': 'React TSX',
-        'html': 'HTML', 'htm': 'HTML',
-        'css': 'CSS', 'scss': 'SCSS', 'sass': 'SASS', 'less': 'LESS',
-        'php': 'PHP',
-        'py': 'Python', 'pyc': 'Python Compiled', 'pyd': 'Python DLL', 'pyo': 'Python Optimized',
-        'rb': 'Ruby', 'erb': 'Ruby ERB',
-        'java': 'Java', 'class': 'Java Class', 'jar': 'Java Archive',
-        'c': 'C', 'h': 'C Header',
-        'cpp': 'C++', 'cc': 'C++', 'cxx': 'C++', 'hpp': 'C++ Header',
-        'cs': 'C#',
-        'go': 'Go',
-        'rs': 'Rust',
-        'swift': 'Swift',
-        'kt': 'Kotlin', 'kts': 'Kotlin Script',
-        'dart': 'Dart',
-        'r': 'R',
-        'scala': 'Scala',
-        'lua': 'Lua',
-        'pl': 'Perl', 'pm': 'Perl Module',
-        'sh': 'Shell Script', 'bash': 'Bash Script', 'zsh': 'ZSH Script',
-        
-        // Config/Data files
-        'json': 'JSON',
-        'xml': 'XML', 'svg': 'SVG',
-        'yml': 'YAML', 'yaml': 'YAML',
-        'toml': 'TOML', 'ini': 'INI', 'conf': 'Configuration',
-        'sql': 'SQL', 'db': 'Database', 'sqlite': 'SQLite Database',
-        'csv': 'CSV', 'tsv': 'TSV', 'xls': 'Excel', 'xlsx': 'Excel',
-        
-        // Documentation files
-        'md': 'Markdown',
-        'txt': 'Plain Text',
-        'rtf': 'Rich Text', 'doc': 'Word Document', 'docx': 'Word Document', 'odt': 'OpenDocument Text',
-        'pdf': 'PDF Document',
-        
-        // Media files
-        'jpg': 'JPEG Image', 'jpeg': 'JPEG Image', 'png': 'PNG Image',
-        'gif': 'GIF Image',
-        'webp': 'WebP Image', 'bmp': 'Bitmap Image', 'tiff': 'TIFF Image', 'tif': 'TIFF Image',
-        'ico': 'Icon', 'icns': 'Apple Icon',
-        'mp3': 'MP3 Audio', 'wav': 'WAV Audio', 'ogg': 'OGG Audio', 'flac': 'FLAC Audio', 
-        'm4a': 'M4A Audio', 'aac': 'AAC Audio',
-        'mp4': 'MP4 Video', 'webm': 'WebM Video', 'avi': 'AVI Video', 
-        'mov': 'QuickTime Video', 'mkv': 'Matroska Video', 'flv': 'Flash Video',
-        
-        // Archive files
-        'zip': 'ZIP Archive', 'tar': 'TAR Archive', 'gz': 'GZip Archive', 
-        'bz2': 'BZip2 Archive', '7z': '7-Zip Archive', 'rar': 'RAR Archive',
-        
-        // Executable files
-        'exe': 'Windows Executable', 'dll': 'Windows Library', 
-        'so': 'Shared Object', 'dylib': 'macOS Library', 'app': 'macOS Application',
-        
-        // Font files
-        'ttf': 'TrueType Font', 'otf': 'OpenType Font', 
-        'woff': 'Web Font', 'woff2': 'Web Font', 'eot': 'Embedded OpenType Font',
-        
-        // Binary/other
-        'bin': 'Binary File', 'dat': 'Data File'
-    };
-    
-    return fileTypes[extension] || 'Unknown';
+function createVisualization(root) {
+    const flattened = flattenFilesystemTree(root);
+    graphNodes = flattened.nodes;
+    graphLinks = flattened.links;
+
+    const graphById = new Map(graphNodes.map(node => [node.id, node]));
+
+    for (const node of graphNodes) {
+        node.mesh = createGraphNode(node);
+        const spread = Math.max(40, Math.min(220, Math.cbrt(graphNodes.length) * 18));
+        node.x = (Math.random() - 0.5) * spread;
+        node.y = (Math.random() - 0.5) * spread;
+        node.z = (Math.random() - 0.5) * spread;
+    }
+
+    for (const link of graphLinks) {
+        link.source = graphById.get(link.source);
+        link.target = graphById.get(link.target);
+    }
+
+    createGraphLinks();
+
+    if (forceSimulation) forceSimulation.stop();
+
+    forceSimulation = d3.forceSimulation(graphNodes, 3)
+        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(link => {
+            const parent = link.source;
+            return parent && parent.isDir ? 42 : 32;
+        }).strength(0.72))
+        .force('charge', d3.forceManyBody().strength(d => d.isDir ? -150 : -85).distanceMax(650))
+        .force('center', d3.forceCenter(0, 0, 0))
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 9 : 6).strength(0.7))
+        .alphaDecay(0.018)
+        .velocityDecay(0.38);
+
+    forceSimulation.on('tick', () => {
+        for (const node of graphNodes) {
+            node.mesh.position.set(node.x || 0, node.y || 0, node.z || 0);
+        }
+        updateGraphLinks();
+    });
+
+    console.log('HACKERS3D graph:', {
+        nodes: graphNodes.length,
+        links: graphLinks.length
+    });
 }
 
 function checkIntersections() {
