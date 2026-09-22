@@ -766,6 +766,7 @@ let graphEdgeIndicesByNodeId = new Map();
 let graphLine = null;
 let graphLinePositions = null;
 let graphLineGeometry = null;
+let visualNetworkLinks = [];
 let frameCounter = 0;
 let lastTelemetryNodeCount = -1;
 let lastCullCameraPosition = new THREE.Vector3();
@@ -912,25 +913,64 @@ function createGraphNode(node) {
 function createGraphLinks() {
     if (!graphLinks.length) return;
 
-    graphLinePositions = new Float32Array(graphLinks.length * 6);
+    visualNetworkLinks = [];
+    const neighborCount = graphNodes.length > 2500 ? 2 : 3;
+
+    // Build a lightweight local mesh around the real filesystem tree.
+    // The tree remains authoritative; these extra edges only provide the
+    // dense 3D-web appearance from the reference.
+    for (let i = 0; i < graphNodes.length; i++) {
+        const node = graphNodes[i];
+        const candidates = [];
+
+        for (let j = Math.max(0, i - 20); j < Math.min(graphNodes.length, i + 21); j++) {
+            if (i === j) continue;
+            const other = graphNodes[j];
+            const dx = (node.x || 0) - (other.x || 0);
+            const dy = (node.y || 0) - (other.y || 0);
+            const dz = (node.z || 0) - (other.z || 0);
+            candidates.push({ other, distance: dx * dx + dy * dy + dz * dz });
+        }
+
+        candidates.sort((left, right) => left.distance - right.distance);
+        for (let k = 0; k < Math.min(neighborCount, candidates.length); k++) {
+            const other = candidates[k].other;
+            if (node.id < other.id) {
+                visualNetworkLinks.push({ source: node, target: other });
+            }
+        }
+    }
+
+    const allLinks = graphLinks.concat(visualNetworkLinks);
+    graphLinePositions = new Float32Array(allLinks.length * 6);
     graphLineGeometry = new THREE.BufferGeometry();
     graphLineGeometry.setAttribute(
         'position',
         new THREE.BufferAttribute(graphLinePositions, 3)
     );
 
-    const colors = new Float32Array(graphLinks.length * 6);
-    for (let i = 0; i < colors.length; i += 3) {
-        colors[i] = 0;
-        colors[i + 1] = 1;
-        colors[i + 2] = 0.4;
+    const colors = new Float32Array(allLinks.length * 6);
+    for (let i = 0; i < allLinks.length; i++) {
+        const visual = i >= graphLinks.length;
+        const green = visual ? 0.46 : 1.0;
+        const blue = visual ? 0.18 : 0.40;
+        const offset = i * 6;
+
+        for (let side = 0; side < 2; side++) {
+            colors[offset + side * 3] = 0;
+            colors[offset + side * 3 + 1] = green;
+            colors[offset + side * 3 + 2] = blue;
+        }
     }
+
     graphLineGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.38
+        opacity: 0.48,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
     });
 
     graphLine = new THREE.LineSegments(graphLineGeometry, material);
@@ -941,20 +981,19 @@ function createGraphLinks() {
 function updateGraphLinks() {
     if (!graphLine || !graphLinePositions) return;
 
-    for (let i = 0; i < graphLinks.length; i++) {
-        const link = graphLinks[i];
+    const allLinks = graphLinks.concat(visualNetworkLinks);
+    for (let i = 0; i < allLinks.length; i++) {
+        const link = allLinks[i];
         const source = link.source;
         const target = link.target;
-        const sMesh = source.mesh;
-        const tMesh = target.mesh;
         const offset = i * 6;
 
-        graphLinePositions[offset] = sMesh.position.x;
-        graphLinePositions[offset + 1] = sMesh.position.y;
-        graphLinePositions[offset + 2] = sMesh.position.z;
-        graphLinePositions[offset + 3] = tMesh.position.x;
-        graphLinePositions[offset + 4] = tMesh.position.y;
-        graphLinePositions[offset + 5] = tMesh.position.z;
+        graphLinePositions[offset] = source.mesh.position.x;
+        graphLinePositions[offset + 1] = source.mesh.position.y;
+        graphLinePositions[offset + 2] = source.mesh.position.z;
+        graphLinePositions[offset + 3] = target.mesh.position.x;
+        graphLinePositions[offset + 4] = target.mesh.position.y;
+        graphLinePositions[offset + 5] = target.mesh.position.z;
     }
 
     graphLineGeometry.attributes.position.needsUpdate = true;
@@ -1165,8 +1204,15 @@ function createVisualization(root) {
         .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -72 : -24) * forceQuality).distanceMax(520))
         .force('center', d3.forceCenter(0, 0, 0).strength(0.006 * forceQuality))
         .force('collision', d3.forceCollide().radius(d => d.isDir ? 8 : 3.8).strength(0.42 * forceQuality))
-        .alphaDecay(nodeCount > 5000 ? 0.035 : 0.02)
-        .velocityDecay(0.4);
+        .alphaDecay(nodeCount > 5000 ? 0.08 : 0.055)
+        .velocityDecay(0.62);
+
+    setTimeout(() => {
+        if (forceSimulation) {
+            forceSimulation.stop();
+            updateGraphLinks();
+        }
+    }, 1800);
 
     // Keep the physics bounded. Very large real filesystems should degrade gracefully
     // instead of turning the browser into a space heater.
