@@ -240,6 +240,12 @@ function onKeyDown(event) {
         case 'KeyP':
             navigateToRelatedNode('parent');
             break;
+        case 'BracketLeft':
+            navigateSibling(-1);
+            break;
+        case 'BracketRight':
+            navigateSibling(1);
+            break;
         case 'KeyC':
             navigateToRelatedNode('child');
             break;
@@ -940,6 +946,44 @@ function selectGraphNode(object) {
     highlightedObject = object;
     updateSelectionPanel(details);
     updateLinkHighlight();
+}
+
+function getSelectedGraphNode() {
+    if (!selectedObject || !selectedObject.userData) return null;
+    const id = selectedObject.userData.graphNodeId;
+    return graphNodes.find(node => node.id === id) || null;
+}
+
+function getSelectedRelatedNodes() {
+    const node = getSelectedGraphNode();
+    if (!node) return { parent: null, children: [], neighbors: [] };
+
+    const childIds = graphChildrenById.get(node.id) || [];
+    const neighborIds = graphNeighborsById.get(node.id) || new Set();
+    return {
+        parent: node.parentId ? graphNodes.find(item => item.id === node.parentId) || null : null,
+        children: childIds.map(id => graphNodes.find(item => item.id === id)).filter(Boolean),
+        neighbors: Array.from(neighborIds).map(id => graphNodes.find(item => item.id === id)).filter(Boolean)
+    };
+}
+
+function navigateSibling(offset) {
+    const node = getSelectedGraphNode();
+    if (!node || !node.parentId) return;
+
+    const siblings = graphChildrenById.get(node.parentId) || [];
+    const index = siblings.indexOf(node.id);
+    if (index < 0 || siblings.length < 2) return;
+
+    const nextIndex = (index + offset + siblings.length) % siblings.length;
+    const targetId = siblings[nextIndex];
+    const targetObject = objects.find(object =>
+        object.userData && object.userData.graphNodeId === targetId
+    );
+    if (!targetObject) return;
+
+    selectGraphNode(targetObject);
+    flyToObject(targetId);
 }
 
 function navigateToRelatedNode(direction) {
