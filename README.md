@@ -1,8 +1,8 @@
-# Cyberspace File Manager
+# HACKERS3D
 
 A cyberpunk-style 3D visualization and management tool for your filesystem.
 
-![Cyberspace File Manager](https://raw.githubusercontent.com/audi70r/cyberspace-file-manager/master/screenshot.jpg)
+![HACKERS3D](https://raw.githubusercontent.com/audi70r/cyberspace-file-manager/master/screenshot.jpg)
 
 ## Features
 
