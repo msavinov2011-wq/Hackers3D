@@ -869,8 +869,8 @@ function flattenFilesystemTree(root) {
 
 function createGraphNode(node) {
     const radius = node.isDir
-        ? Math.min(7, 2.8 + Math.log2(node.childrenCount + 1) * 0.9)
-        : Math.min(4.5, 1.6 + Math.log2(node.size + 1) * 0.12);
+        ? Math.min(4.8, 2.1 + Math.log2(node.childrenCount + 1) * 0.45)
+        : Math.min(2.8, 1.15 + Math.log2(node.size + 1) * 0.055);
 
     const graphSize = graphNodes.length || 0;
     const geometry = node.isDir
@@ -914,31 +914,72 @@ function createGraphLinks() {
     if (!graphLinks.length) return;
 
     visualNetworkLinks = [];
-    const neighborCount = graphNodes.length > 2500 ? 2 : 3;
+    const maxVisualLinks = graphNodes.length > 12000 ? 18000
+        : graphNodes.length > 5000 ? 14000
+        : graphNodes.length > 2500 ? 9000
+        : 6500;
+    const neighborsPerNode = graphNodes.length > 5000 ? 3 : 5;
 
-    // Build a lightweight local mesh around the real filesystem tree.
-    // The tree remains authoritative; these extra edges only provide the
-    // dense 3D-web appearance from the reference.
-    for (let i = 0; i < graphNodes.length; i++) {
-        const node = graphNodes[i];
+    // Build the visual web from actual 3D proximity, not array order.
+    // This is what turns the filesystem into a spatial network instead of
+    // a collection of rings that merely happen to have lines between them.
+    const cellSize = graphNodes.length > 5000 ? 70 : 55;
+    const grid = new Map();
+    const keyFor = (x, y, z) => x + ',' + y + ',' + z;
+
+    for (const node of graphNodes) {
+        const cx = Math.floor((node.x || 0) / cellSize);
+        const cy = Math.floor((node.y || 0) / cellSize);
+        const cz = Math.floor((node.z || 0) / cellSize);
+        const key = keyFor(cx, cy, cz);
+        if (!grid.has(key)) grid.set(key, []);
+        grid.get(key).push(node);
+    }
+
+    const existing = new Set(
+        graphLinks.map(link => {
+            const a = typeof link.source === 'string' ? link.source : link.source.id;
+            const b = typeof link.target === 'string' ? link.target : link.target.id;
+            return a < b ? a + '|' + b : b + '|' + a;
+        })
+    );
+
+    const visualKeys = new Set();
+    for (const node of graphNodes) {
+        const cx = Math.floor((node.x || 0) / cellSize);
+        const cy = Math.floor((node.y || 0) / cellSize);
+        const cz = Math.floor((node.z || 0) / cellSize);
         const candidates = [];
 
-        for (let j = Math.max(0, i - 20); j < Math.min(graphNodes.length, i + 21); j++) {
-            if (i === j) continue;
-            const other = graphNodes[j];
-            const dx = (node.x || 0) - (other.x || 0);
-            const dy = (node.y || 0) - (other.y || 0);
-            const dz = (node.z || 0) - (other.z || 0);
-            candidates.push({ other, distance: dx * dx + dy * dy + dz * dz });
-        }
-
-        candidates.sort((left, right) => left.distance - right.distance);
-        for (let k = 0; k < Math.min(neighborCount, candidates.length); k++) {
-            const other = candidates[k].other;
-            if (node.id < other.id) {
-                visualNetworkLinks.push({ source: node, target: other });
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    const bucket = grid.get(keyFor(cx + dx, cy + dy, cz + dz));
+                    if (!bucket) continue;
+                    for (const other of bucket) {
+                        if (other === node) continue;
+                        const ox = (other.x || 0) - (node.x || 0);
+                        const oy = (other.y || 0) - (node.y || 0);
+                        const oz = (other.z || 0) - (node.z || 0);
+                        candidates.push({ other, distance: ox * ox + oy * oy + oz * oz });
+                    }
+                }
             }
         }
+
+        candidates.sort((a, b) => a.distance - b.distance);
+        let added = 0;
+        for (const candidate of candidates) {
+            const other = candidate.other;
+            const a = node.id;
+            const b = other.id;
+            const pairKey = a < b ? a + '|' + b : b + '|' + a;
+            if (existing.has(pairKey) || visualKeys.has(pairKey)) continue;
+            visualKeys.add(pairKey);
+            visualNetworkLinks.push({ source: node, target: other });
+            if (++added >= neighborsPerNode || visualNetworkLinks.length >= maxVisualLinks) break;
+        }
+        if (visualNetworkLinks.length >= maxVisualLinks) break;
     }
 
     const allLinks = graphLinks.concat(visualNetworkLinks);
@@ -952,10 +993,9 @@ function createGraphLinks() {
     const colors = new Float32Array(allLinks.length * 6);
     for (let i = 0; i < allLinks.length; i++) {
         const visual = i >= graphLinks.length;
-        const green = visual ? 0.46 : 1.0;
-        const blue = visual ? 0.18 : 0.40;
+        const green = visual ? 0.34 : 0.92;
+        const blue = visual ? 0.12 : 0.34;
         const offset = i * 6;
-
         for (let side = 0; side < 2; side++) {
             colors[offset + side * 3] = 0;
             colors[offset + side * 3 + 1] = green;
@@ -968,7 +1008,7 @@ function createGraphLinks() {
     const material = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.48,
+        opacity: 0.56,
         depthWrite: false,
         blending: THREE.AdditiveBlending
     });
@@ -1050,96 +1090,34 @@ function createVisualization(root) {
         node.parentNode = node.parentId ? graphById.get(node.parentId) : null;
     }
 
-    // HACKERS spatial layout: keep the filesystem readable while preserving the
-    // huge 3D network feel. Directories occupy the large-scale volume; files orbit
-    // their parent directory instead of becoming an undifferentiated cloud.
-    const childrenByParent = new Map();
-    for (const node of graphNodes) {
-        if (!node.parentId) continue;
-        if (!childrenByParent.has(node.parentId)) childrenByParent.set(node.parentId, []);
-        childrenByParent.get(node.parentId).push(node);
-    }
-
-    const depthById = new Map();
-    const rootNode = graphNodes.find(node => !node.parentId);
-    if (rootNode) {
-        depthById.set(rootNode.id, 0);
-        const queue = [rootNode];
-        while (queue.length) {
-            const parent = queue.shift();
-            for (const child of childrenByParent.get(parent.id) || []) {
-                depthById.set(child.id, (depthById.get(parent.id) || 0) + 1);
-                queue.push(child);
-            }
-        }
-    }
-
+    // Organic 3D network seed: distribute every node through a volume.
+    // Filesystem hierarchy remains encoded by real links, but the geometry itself
+    // must read as one continuous web rather than directory rings and file orbits.
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const directories = graphNodes.filter(node => node.isDir && node !== rootNode);
-    const rootChildren = rootNode ? (childrenByParent.get(rootNode.id) || []) : [];
-    const rootDirs = rootChildren.filter(node => node.isDir);
+    const nodeCountForLayout = Math.max(1, graphNodes.length);
+    const volumeScale = Math.max(130, Math.min(720, Math.cbrt(nodeCountForLayout) * 72));
 
+    for (let i = 0; i < graphNodes.length; i++) {
+        const node = graphNodes[i];
+        const t = (i + 0.5) / nodeCountForLayout;
+        const radius = volumeScale * Math.cbrt(t);
+        const theta = i * goldenAngle * 1.73;
+        const phi = Math.acos(1 - 2 * t);
+        const jitter = 0.82 + ((i * 37) % 19) / 100;
+
+        node.x = Math.sin(phi) * Math.cos(theta) * radius * jitter;
+        node.y = Math.cos(phi) * radius * jitter;
+        node.z = Math.sin(phi) * Math.sin(theta) * radius * jitter;
+        node.vx = 0;
+        node.vy = 0;
+        node.vz = 0;
+    }
+
+    // Keep the root near the center without rebuilding the whole cloud around it.
     if (rootNode) {
         rootNode.x = 0;
         rootNode.y = 0;
         rootNode.z = 0;
-        rootNode.vx = 0;
-        rootNode.vy = 0;
-        rootNode.vz = 0;
-    }
-
-    // Large directory clusters form the skeleton of the world.
-    for (let i = 0; i < directories.length; i++) {
-        const dir = directories[i];
-        const parent = dir.parentId ? graphNodesById.get(dir.parentId) : null;
-        if (parent && parent !== rootNode) continue;
-
-        const angle = i * goldenAngle;
-        const radius = Math.max(72, Math.min(360, 72 + Math.sqrt(Math.max(1, rootDirs.length)) * 28));
-        dir.x = Math.cos(angle) * radius;
-        dir.y = Math.sin(angle * 1.37) * radius * 0.48;
-        dir.z = Math.sin(angle) * radius;
-        dir.vx = 0;
-        dir.vy = 0;
-        dir.vz = 0;
-    }
-
-    // Deeper directories inherit their parent's position and form smaller satellites.
-    for (let pass = 0; pass < 6; pass++) {
-        for (const dir of directories) {
-            if (dir.x !== undefined && dir.parentId === (rootNode && rootNode.id)) continue;
-            const parent = dir.parentId ? graphNodesById.get(dir.parentId) : null;
-            if (!parent || parent.x === undefined) continue;
-            const siblings = (childrenByParent.get(parent.id) || []).filter(node => node.isDir);
-            const index = Math.max(0, siblings.indexOf(dir));
-            const angle = index * goldenAngle + pass * 0.13;
-            const radius = Math.max(24, Math.min(92, 28 + Math.sqrt(Math.max(1, siblings.length)) * 9));
-            dir.x = (parent.x || 0) + Math.cos(angle) * radius;
-            dir.y = (parent.y || 0) + Math.sin(angle * 1.51) * radius * 0.58;
-            dir.z = (parent.z || 0) + Math.sin(angle) * radius;
-            dir.vx = 0;
-            dir.vy = 0;
-            dir.vz = 0;
-        }
-    }
-
-    // Files orbit their immediate directory. Larger folders get a wider local cloud.
-    for (const parent of graphNodes.filter(node => node.isDir)) {
-        const children = childrenByParent.get(parent.id) || [];
-        const files = children.filter(node => !node.isDir);
-        const radius = Math.max(18, Math.min(72, 18 + Math.sqrt(Math.max(1, files.length)) * 6));
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const angle = i * goldenAngle;
-            const localRadius = radius * (0.65 + Math.sqrt((i + 1) / Math.max(1, files.length)) * 0.72);
-            file.x = (parent.x || 0) + Math.cos(angle) * localRadius;
-            file.y = (parent.y || 0) + Math.sin(angle * 1.71) * localRadius * 0.62;
-            file.z = (parent.z || 0) + Math.sin(angle) * localRadius;
-            file.vx = 0;
-            file.vy = 0;
-            file.vz = 0;
-        }
     }
 
     for (const node of graphNodes) {
@@ -1192,27 +1170,22 @@ function createVisualization(root) {
     forceTickCounter = 0;
 
     forceSimulation = d3.forceSimulation(graphNodes, 3)
-        .force('cluster', directoryClusterForce(0.035 * forceQuality))
-        .force('layout', filesystemLayoutForce(0.055 * forceQuality))
-        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(link => {
-            const source = link.source;
-            const target = link.target;
-            if (source && source.isDir && target && target.isDir) return 54;
-            if (source && source.isDir) return 34;
-            return 30;
-        }).strength(0.9 * forceQuality))
-        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -72 : -24) * forceQuality).distanceMax(520))
-        .force('center', d3.forceCenter(0, 0, 0).strength(0.006 * forceQuality))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 8 : 3.8).strength(0.42 * forceQuality))
-        .alphaDecay(nodeCount > 5000 ? 0.08 : 0.055)
-        .velocityDecay(0.62);
+        .force('cluster', directoryClusterForce(0.008 * forceQuality))
+        .force('layout', filesystemLayoutForce(0.012 * forceQuality))
+        .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(58).strength(0.34 * forceQuality))
+        .force('visual-link', d3.forceLink(visualNetworkLinks).id(d => d.id).distance(46).strength(0.16 * forceQuality))
+        .force('charge', d3.forceManyBody().strength(d => (d.isDir ? -34 : -13) * forceQuality).distanceMax(420))
+        .force('center', d3.forceCenter(0, 0, 0).strength(0.003 * forceQuality))
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 5.5 : 2.3).strength(0.25 * forceQuality))
+        .alphaDecay(nodeCount > 5000 ? 0.065 : 0.045)
+        .velocityDecay(0.58);
 
     setTimeout(() => {
         if (forceSimulation) {
             forceSimulation.stop();
             updateGraphLinks();
         }
-    }, 1800);
+    }, 3200);
 
     // Keep the physics bounded. Very large real filesystems should degrade gracefully
     // instead of turning the browser into a space heater.
