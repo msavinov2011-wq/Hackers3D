@@ -109,6 +109,12 @@ func (fw *filesystemWatcher) run() {
 			if !ok {
 				return
 			}
+			// A removed/renamed directory can invalidate its watch. fsnotify
+			// reports the event, and the next filesystem snapshot becomes the
+			// authoritative state for the browser.
+			if event.Op&fsnotify.Remove != 0 || event.Op&fsnotify.Rename != 0 {
+				_ = fw.watcher.Remove(event.Name)
+			}
 			if event.Op&fsnotify.Create != 0 {
 				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 					fw.addDirectory(event.Name)
