@@ -122,6 +122,20 @@ Each filesystem entry becomes a graph node. Parent-child relationships become gr
 
 The frontend receives the initial filesystem snapshot from `/api/fs`. A recursive `fsnotify` watcher sends debounced filesystem events through `/api/events`, and the browser reloads the graph when the filesystem changes.
 
+## Reusable 3D Network Scene
+
+HACKERS3D can use the supplied `hackers_network.glb` as a reusable visual template library. The GLB is loaded through Three.js `GLTFLoader` and provides shared file/directory/core assets while filesystem data remains dynamic.
+
+Place the asset at:
+
+```text
+static/assets/hackers_network.glb
+```
+
+The runtime uses the named templates `FILE_NODE_TEMPLATE`, `DIRECTORY_NODE_TEMPLATE`, `CORE_NODE_TEMPLATE`, `CONNECTION_TEMPLATE`, `PULSE_TEMPLATE` and `NETWORK_CORE`. If the GLB is not present, HACKERS3D keeps the procedural renderer as a fallback.
+
+The supplied scene manifest contains a 321-node visual sample, 58 directories, 1,084 connections, 28 demo pulses and 95 atmosphere points. The sample is a design/template reference; the running application still creates nodes from the real filesystem.
+
 ## Current Status
 
 The implementation is complete through the project stages, but runtime validation on a real local machine is still required before calling the build production-ready. In particular, the Go build, browser/WebGL execution, filesystem mutations and large-graph performance need to be exercised on the target computer.
