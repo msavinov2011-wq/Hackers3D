@@ -14,19 +14,21 @@
         <div id="controls-info">WASD / Mouse: fly  •  SPACE: up  •  SHIFT+SPACE: down  •  SHIFT: boost</div>
         <div id="action-info">R: rename  •  DELETE: delete  •  CLICK: interact</div>
     </div>
+
     <div id="filesystem-status" class="live-status">FILESYSTEM // CONNECTING</div>
+
     <div id="telemetry" class="hud-panel">
         <div class="hud-label">FLIGHT TELEMETRY</div>
         <div><span>MODE</span><strong id="flight-mode">FREE FLIGHT</strong></div>
         <div><span>BOOST</span><strong id="boost-status">OFF</strong></div>
         <div><span>NODES</span><strong id="node-count">0</strong></div>
     </div>
-        <div id="controls-info">WASD / Mouse: fly  •  SPACE: up  •  SHIFT+SPACE: down  •  SHIFT: boost  •  R: rename  •  DELETE: delete</div>
-    </div>
+
     <div id="search-container">
         <input type="text" id="search-bar" placeholder="Search filesystem..." autocomplete="off">
         <div id="search-results"></div>
     </div>
+
     <div id="selection-panel" class="hud-panel">
         <div class="hud-label">SELECTED NODE</div>
         <div id="selection-name">NONE</div>
@@ -34,13 +36,21 @@
         <div id="selection-relations">PARENT: NONE<br>CHILDREN: 0<br>LINKS: 0</div>
         <div id="selection-controls">P / C: TREE NAV &nbsp; [ ]: SIBLINGS</div>
     </div>
+
     <div id="crosshair">+</div>
     <div id="container"></div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/FontLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/geometries/TextGeometry.js"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-dispatch@3"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-quadtree@3"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-timer@3"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-force@3"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-binarytree"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-octree"></script>\n    <script src="https://cdn.jsdelivr.net/npm/d3-force-3d@3.0.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/geometries/TextGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-dispatch@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-quadtree@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-timer@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-force@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-binarytree"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-octree"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-force-3d@3.0.6"></script>
     <script src="/static/visualizer.js"></script>
 </body>
 </html>
