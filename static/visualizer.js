@@ -256,9 +256,14 @@ function init() {
         event.preventDefault();
     });
 
-    // Filesystem loading is independent from the optional font resource.
-    // Start it after the scene, renderer and controls are fully initialized.
-    loadFilesystemData();
+    // The filesystem graph uses the reusable GLB node templates when available.
+    // Wait for the asset bridge so the first render does not race the model loader.
+    if (window.HACKERS_NETWORK_READY) {
+        window.HACKERS_NETWORK_READY.then(() => loadFilesystemData())
+            .catch(() => loadFilesystemData());
+    } else {
+        loadFilesystemData();
+    }
 
     window.addEventListener('blur', clearMovementState);
     document.addEventListener('visibilitychange', function() {
@@ -798,6 +803,9 @@ const sharedNodeMaterials = {
 
 function disposeObject(object) {
     if (!object) return;
+    // GLB template clones intentionally share geometry/material with the loaded
+    // network asset. They must never dispose the shared resources on filesystem reload.
+    if (object.userData && object.userData.hackersSharedAsset) return;
     if (object.geometry) object.geometry.dispose();
     // Node materials are shared across the graph. Dispose them only through the
     // dedicated shared-material lifecycle, not once per mesh during reload.
@@ -881,18 +889,32 @@ function createGraphNode(node) {
         ? Math.min(4.6, 1.55 + normalizedWeight * 3.05)
         : Math.min(3.1, 0.62 + normalizedWeight * 2.15);
 
-    const graphSize = graphNodes.length || 0;
-    const geometry = new THREE.SphereGeometry(
-        radius,
-        graphSize > 10000 ? 7 : graphSize > 2500 ? 10 : 18,
-        graphSize > 10000 ? 5 : graphSize > 2500 ? 7 : 12
-    );
+    let mesh;
+    const templateAssets = window.HACKERS_NETWORK_ASSETS;
 
-    const material = node.isDir
-        ? sharedNodeMaterials.directory
-        : sharedNodeMaterials.file;
+    if (templateAssets && templateAssets.ready) {
+        const template = node.isDir ? templateAssets.directory : templateAssets.file;
+        mesh = template.clone(true);
+        mesh.userData.hackersSharedAsset = true;
+        mesh.traverse(child => {
+            if (child.userData) child.userData.hackersSharedAsset = true;
+        });
+        mesh.scale.setScalar(radius);
+    } else {
+        const graphSize = graphNodes.length || 0;
+        const geometry = new THREE.SphereGeometry(
+            radius,
+            graphSize > 10000 ? 7 : graphSize > 2500 ? 10 : 18,
+            graphSize > 10000 ? 5 : graphSize > 2500 ? 7 : 12
+        );
 
-    const mesh = new THREE.Mesh(geometry, material);
+        const material = node.isDir
+            ? sharedNodeMaterials.directory
+            : sharedNodeMaterials.file;
+
+        mesh = new THREE.Mesh(geometry, material);
+    }
+
     mesh.userData.graphNodeId = node.id;
     mesh.userData.path = node.path;
 
@@ -1258,6 +1280,20 @@ function createVisualization(root) {
     }
 
     createGraphLinks();
+
+    // Use the GLB's authored core as the visual anchor when the asset is available.
+    if (window.HACKERS_NETWORK_ASSETS && window.HACKERS_NETWORK_ASSETS.ready && rootNode) {
+        const core = window.HACKERS_NETWORK_ASSETS.networkCore.clone(true);
+        core.name = 'hackers-network-core';
+        core.userData.hackersSharedAsset = true;
+        core.traverse(child => {
+            if (child.userData) child.userData.hackersSharedAsset = true;
+        });
+        core.position.set(rootNode.x || 0, rootNode.y || 0, rootNode.z || 0);
+        core.scale.setScalar(1.8);
+        scene.add(core);
+    }
+
     createNetworkAtmosphere(rootNode);
     createNetworkPulseField();
 
