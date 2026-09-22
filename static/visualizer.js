@@ -110,6 +110,7 @@ function init() {
         
         // If pointer is locked and we have a highlighted object, interact with it
         if (highlightedObject) {
+            selectGraphNode(highlightedObject);
             const details = objectDetails.get(highlightedObject.id);
             if (details) {
                 if (details.type === 'Directory') {
