@@ -605,7 +605,8 @@ function flattenFilesystemTree(root) {
             isDir: !!node.isDir,
             size: Number(node.size) || 0,
             modified: node.modified || '',
-            childrenCount: Array.isArray(node.children) ? node.children.length : 0
+            childrenCount: Array.isArray(node.children) ? node.children.length : 0,
+            parentId: parentPath || null
         };
 
         nodes.push(graphNode);
@@ -725,6 +726,32 @@ function updateGraphLinks() {
     graphLineGeometry.attributes.position.needsUpdate = true;
 }
 
+function directoryClusterForce(strength = 0.045) {
+    let nodes = [];
+
+    function force(alpha) {
+        const k = strength * alpha;
+        for (const node of nodes) {
+            if (!node.parentId || !node.parentNode) continue;
+
+            const parent = node.parentNode;
+            const dx = (parent.x || 0) - (node.x || 0);
+            const dy = (parent.y || 0) - (node.y || 0);
+            const dz = (parent.z || 0) - (node.z || 0);
+
+            node.vx += dx * k;
+            node.vy += dy * k;
+            node.vz += dz * k;
+        }
+    }
+
+    force.initialize = function(initializedNodes) {
+        nodes = initializedNodes;
+    };
+
+    return force;
+}
+
 function createVisualization(root) {
     const flattened = flattenFilesystemTree(root);
     graphNodes = flattened.nodes;
@@ -732,12 +759,31 @@ function createVisualization(root) {
 
     const graphById = new Map(graphNodes.map(node => [node.id, node]));
 
+    // Build explicit parent references so directory clusters stay spatially coherent.
     for (const node of graphNodes) {
+        node.parentNode = node.parentId ? graphById.get(node.parentId) : null;
+    }
+
+    // Deterministic 3D seed positions. Reproducible layouts make debugging much less
+    // entertaining than Math.random(), which is precisely why we are using them.
+    const spread = Math.max(45, Math.min(260, Math.cbrt(graphNodes.length) * 22));
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+    for (let i = 0; i < graphNodes.length; i++) {
+        const node = graphNodes[i];
         node.mesh = createGraphNode(node);
-        const spread = Math.max(40, Math.min(220, Math.cbrt(graphNodes.length) * 18));
-        node.x = (Math.random() - 0.5) * spread;
-        node.y = (Math.random() - 0.5) * spread;
-        node.z = (Math.random() - 0.5) * spread;
+
+        const radius = spread * Math.sqrt((i + 1) / Math.max(1, graphNodes.length));
+        const theta = i * goldenAngle;
+        const y = ((i / Math.max(1, graphNodes.length - 1)) * 2 - 1) * spread * 0.55;
+        const horizontal = Math.sqrt(Math.max(0, 1 - Math.min(0.95, Math.abs(y / spread)) ** 2));
+
+        node.x = Math.cos(theta) * radius * horizontal;
+        node.y = y;
+        node.z = Math.sin(theta) * radius * horizontal;
+        node.vx = 0;
+        node.vy = 0;
+        node.vz = 0;
     }
 
     for (const link of graphLinks) {
@@ -752,13 +798,14 @@ function createVisualization(root) {
     forceSimulation = d3.forceSimulation(graphNodes, 3)
         .force('link', d3.forceLink(graphLinks).id(d => d.id).distance(link => {
             const parent = link.source;
-            return parent && parent.isDir ? 42 : 32;
-        }).strength(0.72))
-        .force('charge', d3.forceManyBody().strength(d => d.isDir ? -150 : -85).distanceMax(650))
+            return parent && parent.isDir ? 48 : 36;
+        }).strength(0.68))
+        .force('cluster', directoryClusterForce(0.075))
+        .force('charge', d3.forceManyBody().strength(d => d.isDir ? -165 : -78).distanceMax(700))
         .force('center', d3.forceCenter(0, 0, 0))
-        .force('collision', d3.forceCollide().radius(d => d.isDir ? 9 : 6).strength(0.7))
-        .alphaDecay(0.018)
-        .velocityDecay(0.38);
+        .force('collision', d3.forceCollide().radius(d => d.isDir ? 9 : 6).strength(0.72))
+        .alphaDecay(0.02)
+        .velocityDecay(0.4);
 
     forceSimulation.on('tick', () => {
         for (const node of graphNodes) {
