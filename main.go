@@ -372,7 +372,7 @@ func main() {
 		path := filepath.Join(absPath, relativePath)
 
 		// Security check - only allow paths within our root directory
-		if !strings.HasPrefix(path, absPath) {
+		if !isWithinRoot(path) {
 			http.Error(w, "Access denied: path outside of root directory", http.StatusForbidden)
 			return
 		}
