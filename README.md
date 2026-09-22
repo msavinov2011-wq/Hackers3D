@@ -128,4 +128,4 @@ The implementation is complete through the project stages, but runtime validatio
 
 ## License
 
-MIT
+The imported source README states MIT licensing, but the repository does not currently contain a license file in this branch. Verify the license before redistributing the project.
