@@ -94,6 +94,76 @@ function formatFileSize(bytes) {
         : value.toFixed(1) + ' ' + units[unitIndex];
 }
 
+let networkPulsePoints = null;
+let networkPulseData = null;
+
+function createNetworkPulseField() {
+    if (networkPulsePoints) {
+        scene.remove(networkPulsePoints);
+        networkPulsePoints.geometry.dispose();
+        networkPulsePoints.material.dispose();
+    }
+
+    const maxPulses = Math.min(420, Math.max(40, Math.floor(graphLinks.length * 0.22)));
+    if (!graphLinks.length) {
+        networkPulsePoints = null;
+        networkPulseData = null;
+        return;
+    }
+
+    const positions = new Float32Array(maxPulses * 3);
+    const pulses = [];
+
+    for (let i = 0; i < maxPulses; i++) {
+        pulses.push({
+            link: graphLinks[i % graphLinks.length],
+            offset: (i * 0.6180339887) % 1,
+            speed: 0.08 + ((i * 17) % 31) / 260
+        });
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const material = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 2.7,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+
+    networkPulsePoints = new THREE.Points(geometry, material);
+    networkPulsePoints.name = 'hackers-network-pulses';
+    networkPulsePoints.frustumCulled = false;
+    scene.add(networkPulsePoints);
+    networkPulseData = pulses;
+}
+
+function updateNetworkPulseField(timeSeconds) {
+    if (!networkPulsePoints || !networkPulseData) return;
+
+    const positions = networkPulsePoints.geometry.attributes.position.array;
+
+    for (let i = 0; i < networkPulseData.length; i++) {
+        const pulse = networkPulseData[i];
+        const link = pulse.link;
+        if (!link || !link.source || !link.target) continue;
+
+        const source = link.source;
+        const target = link.target;
+        const t = (pulse.offset + timeSeconds * pulse.speed) % 1;
+
+        positions[i * 3] = source.x + (target.x - source.x) * t;
+        positions[i * 3 + 1] = source.y + (target.y - source.y) * t;
+        positions[i * 3 + 2] = source.z + (target.z - source.z) * t;
+    }
+
+    networkPulsePoints.geometry.attributes.position.needsUpdate = true;
+}
+
+
 // Initialize the scene
 function init() {
     // Create scene
@@ -1043,6 +1113,7 @@ function createVisualization(root) {
     }
 
     createGraphLinks();
+    createNetworkPulseField();
 
     // Particle field inspired by the data-flow reference. It stays behind the
     // filesystem graph and is deliberately sparse so the nodes remain readable.
@@ -1394,6 +1465,7 @@ function updateLargeGraphCulling() {
 
 function animate() {
     requestAnimationFrame(animate);
+    updateNetworkPulseField(performance.now() * 0.001);
     
     frameCounter++;
     if ((frameCounter & 15) === 0) updateLargeGraphCulling();
