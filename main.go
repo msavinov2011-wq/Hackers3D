@@ -396,7 +396,7 @@ func main() {
 
 	// Start the server
 	serverAddr := ":" + strconv.Itoa(port)
-	fmt.Printf("Cyberspace File Manager\n")
+	fmt.Printf("HACKERS3D\n")
 	fmt.Printf("======================\n")
 	fmt.Printf("Server running at http://localhost%s\n", serverAddr)
 	fmt.Printf("Visualizing directory: %s\n", absPath)
