@@ -131,8 +131,18 @@ func main() {
 		log.Fatalf("Error resolving path: %v", err)
 	}
 
+	// Start recursive filesystem notifications before serving the UI.
+	filesystemEvents, err := newFilesystemWatcher(absPath)
+	if err != nil {
+		log.Fatalf("Error starting filesystem watcher: %v", err)
+	}
+	defer filesystemEvents.watcher.Close()
+
 	// Serve static files
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
+	// Server-Sent Events stream used by the HACKERS3D frontend for live updates.
+	http.HandleFunc("/api/events", filesystemEvents.serveSSE)
 
 	// API endpoint to get filesystem data
 	http.HandleFunc("/api/fs", func(w http.ResponseWriter, r *http.Request) {
