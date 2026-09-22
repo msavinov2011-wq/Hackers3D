@@ -25,6 +25,34 @@ let isFlying = false; // Flag to indicate if camera is automatically flying
 let flyingTarget = null; // Target position for automatic flying
 let flyingLookAt = null; // Look at position for automatic flying
 let searchFocused = false; // Flag to track if search is focused
+let selectedObject = null;
+
+function updateTelemetry() {
+    const nodeCount = document.getElementById('node-count');
+    const boostStatus = document.getElementById('boost-status');
+    const flightMode = document.getElementById('flight-mode');
+    if (nodeCount) nodeCount.textContent = String(graphNodes.length || 0);
+    if (boostStatus) boostStatus.textContent = boost ? 'ON' : 'OFF';
+    if (flightMode) flightMode.textContent = isFlying ? 'AUTO PILOT' : 'FREE FLIGHT';
+}
+
+function updateSelectionPanel(details) {
+    const name = document.getElementById('selection-name');
+    const info = document.getElementById('selection-details');
+    if (!name || !info) return;
+    if (!details) {
+        name.textContent = 'NONE';
+        info.textContent = 'Click a node to inspect it';
+        return;
+    }
+    name.textContent = details.name;
+    info.innerHTML = [
+        '<strong>Type:</strong> ' + details.type,
+        '<strong>Path:</strong> ' + details.path,
+        details.type === 'File' ? '<strong>Size:</strong> ' + details.size : '<strong>Items:</strong> ' + details.children,
+        '<strong>Modified:</strong> ' + details.modified
+    ].join('<br>');
+}
 let searchInitialized = false;
 let highlightedLinkIndices = [];
 
@@ -1159,6 +1187,7 @@ function animate() {
     
     // Check for intersections for hover info
     checkIntersections();
+    updateTelemetry();
     
     // Update graph link highlighting after raycasting.
     updateLinkHighlight();
